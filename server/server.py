@@ -7,7 +7,7 @@ import json
 import aiosqlite
 import sys
 
-if sys.argv[1] == "init":
+if len(sys.argv) >= 2 and sys.argv[1] == "init":
     # Initialize database
     async def init_db():
         async with aiosqlite.connect(DABA) as db:

@@ -1,0 +1,17 @@
+# Virtual Environment
+.venv/
+
+# SSL Secrets
+*.pem
+*.crt
+*.key
+
+# db
+*.db
+*.wal
+*.dblog
+
+# Other
+*.log
+.vscode/
+__pycache__/
