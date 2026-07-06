@@ -7,9 +7,8 @@ services:
     ports:
       - "443:443"
     volumes:
-      # Persistent storage mounts
       - ./data:/app/data
       - ./logs:/app/logs
-      # Optional: Mount config if you want to change settings without rebuilding
+      # Optional
       - ./config.json:/app/config.json
     restart: unless-stopped
