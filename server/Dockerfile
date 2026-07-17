@@ -8,14 +8,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     openssl \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+# RUN python -mvenv .venv && source .venv/bin/activate
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN chmod +x regen-ssl.sh
+RUN dos2unix regen-ssl.sh && chmod +x regen-ssl.sh
 
 EXPOSE 443
 

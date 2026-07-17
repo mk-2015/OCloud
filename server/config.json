@@ -1,6 +1,14 @@
 {
     "host": "0.0.0.0",
     "port": 443,
+    "cube": 
+    {
+        "use": false,
+        "workers": [
+            { "name": "worker_1", "ip": "10.0.0.1", "port": 8900},
+            { "name": "worker_2", "ip": "10.0.0.2", "port": 7900}
+        ]
+    },
     "ssl": 
     {
         "use": true,

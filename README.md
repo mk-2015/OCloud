@@ -1,40 +1,8 @@
-# OMedia
-![Logo](./server/root/logo.png)
-
-OMedia is a lightweight self-hosted cloud storage project built with Python and FastAPI. It is designed for homelabbing, learning, and experimenting with personal cloud-style storage on a local machine or private server.
-
-## Features
-- User registration and login
-- Password-based access for regular users
-- Admin dashboard for managing users and viewing their files
-- Per-user filesystem storage under the data directory
-- Folder creation, file upload, download, listing, and deletion
-- Simple web interface for browsing and managing files
-
-## Project structure
-- server/server.py: FastAPI application and storage logic
-- server/root/: frontend pages and static assets
-- server/data/: per-user storage and SQLite database
-- server/config.json: host, port, SSL, and admin settings
-
-## Requirements
-- Python 3.10+
-- FastAPI
-- Uvicorn
-- aiosqlite
-
-## Setup
-```bash
-python -mvenv .venv
-source .venv/bin/activate
-cd server
-pip install -r requirements.txt
-python server.py init
-python server.py
-```
+# OCloud
+Media storage and command execution heaven.
 
 ## Configuration
-Example config.json:
+Place runtime and network settings in server/config.json. Example:
 ```json
 {
   "host": "0.0.0.0",
@@ -48,10 +16,49 @@ Example config.json:
 }
 ```
 
-## Storage model
-Each user gets their own directory under the data folder, for example:
-```text
-data/
+Configure SSL paths, host and port before starting the service.
+
+## Setup
+Recommended deployment using Docker Compose:
+```bash
+docker compose up -d
+```
+Requirements:
+- Docker
+- Docker Compose
+
+For a native Python deployment, create a virtual environment, install dependencies (FastAPI, Uvicorn, aiosqlite) and run the ASGI server.
+
+## Components
+
+### OMedia
+
+OMedia is a performant, self-hosted storage component built with Python and FastAPI. It provides per-user file storage, authentication, and an admin interface for user and file management.
+
+Key features
+- User registration, login and session management
+- Password-protected accounts for regular users
+- Admin dashboard for user and file management
+- Per-user filesystem storage under server/data
+- File operations: create folder, upload, download, list, move, delete
+- Minimal web UI for browsing and managing files
+
+Project layout
+- server/server.py — FastAPI application and storage logic
+- server/root/ — frontend pages and static assets (HTML, CSS, JS, logo)
+- server/data/ — per-user directories and SQLite database (database.db)
+- server/config.json — runtime configuration (host, port, SSL, admin)
+
+Requirements
+- Python 3.10+
+- FastAPI
+- Uvicorn
+- aiosqlite
+
+Storage model
+Each user has a directory under server/data. Example:
+```
+server/data/
   user1/
     docs/
       note.html
@@ -61,13 +68,13 @@ data/
   database.db
 ```
 
-## Web interface
-- /login.html: user login
-- /new_user.html: create a new account
-- /userdashboard.html: user file manager
-- /admin.html: admin dashboard
+Web interface
+- /login.html — user login
+- /new_user.html — account creation
+- /userdashboard.html — user file manager
+- /admin.html — admin dashboard
 
-## API highlights
+API highlights
 - /api/login
 - /api/logout
 - /api/me
@@ -85,8 +92,10 @@ data/
 - /api/admin/files/{username}
 - /api/admin/users/{username}
 
-## License
-This project is licensed under the GNU General Public License v3.0.
+License
+This component is licensed under the GNU General Public License v3.0.
 
-## Contribution
-You are welcome to fork, modify, and contribute to this project.
+Contributing
+Contributions are welcome. Please fork the repository, make changes in a branch and submit a pull request.
+
+### Cube
