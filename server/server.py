@@ -47,16 +47,7 @@ app = FastAPI()
 app.include_router(omedia_router)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
     print("[WARNING] Cube is experimental and in non-production form.")
-    while t == True:
-        i = input("Run? (Y/N): ")
-        if i.upper() in ["Y", "YES", "YEAH"]:
-            t = False
-        elif i.upper() in ["N", "NO", "NAH", "NOPE"]:
-            sys.exit(-1)
-        else:
-            print("Error: Invalid Option. Please enter Y or N")
-    from modules.cube import cube_router, init_cube_cluster
-    init_cube_cluster(config["cube"].get("workers", []), config["cube"].get("authtoken-firecracker", []))
+    from modules.cube import cube_router
     app.include_router(cube_router)
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="static")
 

@@ -3,6 +3,7 @@ uvicorn>=0.50.0
 aiosqlite>=0.17.0
 pylint
 
-# future deps
+# cube
+docker>=7.0.0
 
 # aiofiles>=23.1.0
