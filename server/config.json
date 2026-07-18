@@ -3,7 +3,12 @@
     "port": 443,
     "cube": 
     {
-        "use": false
+        "use": false,
+        "islocal": true,
+        "workers": 
+        [
+            "tcp://localhost:2750"
+        ]
     },
     "ssl": 
     {
