@@ -47,10 +47,13 @@ def cubemsg(request: Request):
 
 
 @cube_router.post("/api/cube/lambda/launch")
-def launchlambda(request: Request):
+async def launchlambda(request: Request):
     global clientidx
     session = require_session(request, required_role="user")
-    
+    json = await request.json()
+
+    dockertag = json.get("os", "fedora:44")
+
     if not clientnodes:
         return JSONResponse(
             content={"success": False, "reason": "Cube runtime not initialized"},
@@ -64,7 +67,7 @@ def launchlambda(request: Request):
         clientidx = (clientidx + 1) % len(clientnodes)
 
     container = target_client.containers.run(
-        "fedora:44",
+        dockertag,
         command="sleep infinity",
         name=f"cube-lambda-{lambdaid}",
         detach=True,
