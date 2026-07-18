@@ -47,7 +47,11 @@ app = FastAPI()
 app.include_router(omedia_router)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
     print("[WARNING] Cube is experimental and in non-production form.")
-    from modules.cube import cube_router
+    from modules.cube import cube_router, init_cube
+    if config["cube"]["islocal"]:
+        init_cube([])
+    else:
+        init_cube(config["cube"].get("workers", []), local=False)
     app.include_router(cube_router)
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="static")
 
