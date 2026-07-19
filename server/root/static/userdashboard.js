@@ -4,6 +4,11 @@ const uploadForm = document.getElementById('uploadForm');
 const mkdirBtn = document.getElementById('mkdirBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const folderInput = document.getElementById('folderInput');
+const shareForm = document.getElementById('shareForm');
+const sharePath = document.getElementById('sharePath');
+const shareForever = document.getElementById('shareForever');
+const shareStatus = document.getElementById('shareStatus');
+const shareResult = document.getElementById('shareResult');
 let currentPath = '.';
 let currentUser = null;
 
@@ -22,7 +27,7 @@ async function loadFiles(path = currentPath) {
   if (!user) return;
   currentPath = path;
   status.textContent = 'Loading files...';
-  const response = await fetch(`/api/lsdir/${encodeURIComponent(user.username)}${path && path !== '.' ? `/${encodeURIComponent(path)}` : ''}`);
+  const response = await fetch(`/api/omedia/lsdir/${encodeURIComponent(user.username)}${path && path !== '.' ? `/${encodeURIComponent(path)}` : ''}`);
   const data = await response.json();
   fileList.innerHTML = '';
 
@@ -49,11 +54,17 @@ async function loadFiles(path = currentPath) {
   data.entries.forEach((entry) => {
     const item = document.createElement('li');
     item.className = 'file-item';
+    const isDir = entry.type === 'dir';
+    const icon = isDir ? '📁' : '📄';
     item.innerHTML = `
-      <span>${entry.name} (${entry.type})</span>
+      <div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
+        <span class="file-icon">${icon}</span>
+        <span class="file-name">${entry.name}</span>
+      </div>
       <div class="file-actions">
-        ${entry.type === 'dir' ? `<button class="link-btn" data-enter="${entry.path}">Open</button>` : `<a href="/api/download/${encodeURIComponent(user.username)}/${encodeURIComponent(entry.path)}" target="_blank">Download</a>`}
-        <button data-name="${entry.path}" class="link-btn">Delete</button>
+        ${isDir ? `<button class="link-btn" data-enter="${entry.path}">Open</button>` : `<a href="/api/omedia/download/${encodeURIComponent(user.username)}/${encodeURIComponent(entry.path)}" target="_blank">Download</a>`}
+        ${!isDir ? `<button class="link-btn btn-share" data-share="${entry.path}">Share</button>` : ''}
+        <button data-name="${entry.path}" class="link-btn btn-delete">Delete</button>
       </div>
     `;
     list.appendChild(item);
@@ -75,7 +86,7 @@ uploadForm.addEventListener('submit', async (event) => {
   formData.append('file', fileInput.files[0]);
   const uploadTarget = currentPath && currentPath !== '.' ? currentPath : '';
   if (uploadTarget) formData.append('folder', uploadTarget);
-  const response = await fetch(`/api/upload/${encodeURIComponent(user.username)}`, {
+  const response = await fetch(`/api/omedia/upload/${encodeURIComponent(user.username)}`, {
     method: 'POST',
     body: formData,
   });
@@ -94,7 +105,7 @@ mkdirBtn.addEventListener('click', async () => {
     return;
   }
   const targetPath = currentPath && currentPath !== '.' ? `${currentPath}/${name}` : name;
-  const response = await fetch(`/api/mkdir/${encodeURIComponent(user.username)}`, {
+  const response = await fetch(`/api/omedia/mkdir/${encodeURIComponent(user.username)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path: targetPath }),
@@ -124,7 +135,7 @@ fileList.addEventListener('click', async (event) => {
     const user = await requireSession();
     if (!user) return;
     const name = button.getAttribute('data-name');
-    const response = await fetch(`/api/delete/${encodeURIComponent(user.username)}/${encodeURIComponent(name)}`, {
+    const response = await fetch(`/api/omedia/delete/${encodeURIComponent(user.username)}/${encodeURIComponent(name)}`, {
       method: 'DELETE',
     });
     if (response.ok) {
@@ -132,11 +143,50 @@ fileList.addEventListener('click', async (event) => {
       loadFiles();
     }
   }
+
+  if (button.hasAttribute('data-share')) {
+    const filePath = button.getAttribute('data-share');
+    sharePath.value = filePath;
+    shareResult.innerHTML = '';
+    shareStatus.textContent = '';
+    shareForm.scrollIntoView({ behavior: 'smooth' });
+  }
 });
 
 logoutBtn.addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST' });
   window.location.href = '/login.html';
+});
+
+shareForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const user = await requireSession();
+  if (!user) return;
+  const filepath = sharePath.value.trim();
+  if (!filepath) {
+    shareStatus.textContent = 'Enter a file path.';
+    return;
+  }
+  shareStatus.textContent = 'Creating link...';
+  shareResult.innerHTML = '';
+  const response = await fetch('/api/fileshare/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filepath, isforever: shareForever.checked }),
+  });
+  const data = await response.json();
+  if (response.ok) {
+    const link = window.location.origin + data.URL;
+    shareStatus.textContent = 'Link created!';
+    shareResult.innerHTML = `
+      <div class="share-link-box">
+        <input id="shareLink" type="text" value="${link}" readonly />
+        <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('shareLink').value).then(() => this.textContent = 'Copied!')">Copy</button>
+      </div>
+    `;
+  } else {
+    shareStatus.textContent = data.Reason || 'Failed to create link.';
+  }
 });
 
 loadFiles();

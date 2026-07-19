@@ -17,6 +17,7 @@ createUserForm.addEventListener("submit", async (event) => {
     if (result.status === 201) {
         alert("User created successfully!");
         createUserForm.reset();
+	window.location.href = "/omedia/userdashboard.html";
     } else {
         let errorData = await result.json();
         let errorMessage = errorData.error || "An error occurred while creating the user.";

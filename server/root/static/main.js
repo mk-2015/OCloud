@@ -12,31 +12,31 @@ async function loadFiles() {
   }
 
   status.textContent = 'Loading files...';
-  const response = await fetch(`/api/list/${encodeURIComponent(username)}`);
+  const response = await fetch(`/api/omedia/lsdir/${encodeURIComponent(username)}`);
   const data = await response.json();
   fileList.innerHTML = '';
 
-  if (!data.files.length) {
+  if (!data.entries.length) {
     fileList.innerHTML = '<p class="empty">No files yet.</p>';
     status.textContent = 'No files found for this user.';
     return;
   }
 
   const list = document.createElement('ul');
-  data.files.forEach((file) => {
+  data.entries.forEach((file) => {
     const item = document.createElement('li');
     item.className = 'file-item';
     item.innerHTML = `
       <span>${file.name}</span>
       <div class="file-actions">
-        <a href="/api/download/${encodeURIComponent(username)}/${encodeURIComponent(file.name)}" target="_blank">Download</a>
+        <a href="/api/omedia/download/${encodeURIComponent(username)}/${encodeURIComponent(file.path)}" target="_blank">Download</a>
         <button data-name="${file.name}" class="link-btn">Delete</button>
       </div>
     `;
     list.appendChild(item);
   });
   fileList.appendChild(list);
-  status.textContent = `Loaded ${data.files.length} file(s).`;
+  status.textContent = `Loaded ${data.entries.length} file(s).`;
 }
 
 loadBtn.addEventListener('click', loadFiles);
@@ -63,7 +63,7 @@ uploadForm.addEventListener('submit', async (event) => {
   if (folder) formData.append('folder', folder);
 
   status.textContent = 'Uploading...';
-  const response = await fetch(`/api/upload/${encodeURIComponent(username)}`, {
+  const response = await fetch(`/api/omedia/upload/${encodeURIComponent(username)}`, {
     method: 'POST',
     body: formData,
   });
@@ -77,7 +77,7 @@ fileList.addEventListener('click', async (event) => {
   if (event.target.matches('button[data-name]')) {
     const username = usernameInput.value.trim();
     const name = event.target.getAttribute('data-name');
-    const response = await fetch(`/api/delete/${encodeURIComponent(username)}/${encodeURIComponent(name)}`, {
+    const response = await fetch(`/api/omedia/delete/${encodeURIComponent(username)}/${encodeURIComponent(name)}`, {
       method: 'DELETE',
     });
     if (response.ok) {

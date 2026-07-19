@@ -11,7 +11,7 @@ async function requireAdmin() {
   }
   const data = await response.json();
   if (data.role !== 'admin') {
-    window.location.href = '/userdashboard.html';
+    window.location.href = '/omedia/userdashboard.html';
     return null;
   }
   currentUser = data;
@@ -21,7 +21,7 @@ async function requireAdmin() {
 async function loadUsers() {
   const admin = await requireAdmin();
   if (!admin) return;
-  const response = await fetch('/api/admin/users');
+  const response = await fetch('/api/omedia/admin/users');
   const data = await response.json();
   userList.innerHTML = '';
   const list = document.createElement('ul');
@@ -29,10 +29,13 @@ async function loadUsers() {
     const item = document.createElement('li');
     item.className = 'file-item';
     item.innerHTML = `
-      <span>${user.username} (${user.email})</span>
+      <div class="file-info file-user">
+        <span class="file-icon">👤</span>
+        <span class="file-name">${user.username} <span style="font-size:0.75rem; color:var(--text-secondary);">(${user.email})</span></span>
+      </div>
       <div class="file-actions">
         <button class="link-btn" data-view="${user.username}">View files</button>
-        <button class="link-btn" data-delete="${user.username}">Delete</button>
+        <button class="link-btn btn-delete" data-delete="${user.username}">Delete</button>
       </div>
     `;
     list.appendChild(item);
@@ -41,7 +44,7 @@ async function loadUsers() {
 }
 
 async function loadFiles(username) {
-  const response = await fetch(`/api/admin/files/${encodeURIComponent(username)}`);
+  const response = await fetch(`/api/omedia/admin/files/${encodeURIComponent(username)}`);
   const data = await response.json();
   fileList.innerHTML = '';
   if (!data.entries.length) {
@@ -52,9 +55,13 @@ async function loadFiles(username) {
   data.entries.forEach((entry) => {
     const item = document.createElement('li');
     item.className = 'file-item';
+    const isDir = entry.type === 'dir';
+    const icon = isDir ? '📁' : '📄';
     item.innerHTML = `
-      <span>${entry.name} (${entry.type})</span>
-      ${entry.type === 'file' ? `<span>${entry.size} bytes</span>` : ''}
+      <div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
+        <span class="file-icon">${icon}</span>
+        <span class="file-name">${entry.name} ${entry.type === 'file' ? `<span style="font-size:0.75rem; color:var(--text-secondary);">(${entry.size} bytes)</span>` : ''}</span>
+      </div>
     `;
     list.appendChild(item);
   });

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OMedia Dashboard</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="app-shell">
@@ -15,6 +15,7 @@
                 <p class="hero-copy">Manage your files, create folders, and preview text content.</p>
             </div>
             <div class="hero-actions">
+                <a href="/cube/index.html" class="btn btn-primary" style="margin-right: 12px; text-decoration: none; display: inline-block;">Cube IDE</a>
                 <button id="logoutBtn" class="btn btn-secondary">Logout</button>
             </div>
         </header>
@@ -38,8 +39,23 @@
                 <h2>Files</h2>
                 <div id="fileList" class="file-list"></div>
             </section>
+			
+			<section class="panel">
+				<h2>Share</h2>
+				<div id="shareStatus" class="status"></div>
+				<form id="shareForm" class="upload-box">
+					<label for="sharePath">File path</label>
+					<input id="sharePath" placeholder="e.g. docs/note.html" />
+					<label class="checkbox-label">
+						<input id="shareForever" type="checkbox" />
+						Make link last forever
+					</label>
+					<button class="btn btn-primary" type="submit">Share</button>
+				</form>
+				<div id="shareResult" class="share-result"></div>
+			</section>
         </main>
     </div>
-    <script src="/userdashboard.js"></script>
+    <script src="/static/userdashboard.js"></script>
 </body>
 </html>

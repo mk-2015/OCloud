@@ -5,6 +5,7 @@ import asyncio
 from typing import List, Dict, Any
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from modules.auth import require_session, WebSocketAuthException
 import docker
 

@@ -6,6 +6,11 @@ sessions: dict[str, dict] = {}
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin"
 
+privledge_levels = [
+    ["user", 1],
+    ["admin", 2]
+]
+
 class WebSocketAuthException(Exception):
     def __init__(self, code: int, reason: str):
         self.code = code
@@ -15,9 +20,10 @@ def init_auth_config(config_dict: dict):
     global ADMIN_PASSWORD
     ADMIN_PASSWORD = config_dict.get("admin_password", "admin")
 
-def require_session(request: Request | WebSocket, required_role: str | None = None) -> dict:
+def require_session(request: Request | WebSocket, required_role: str | None = None, ormore = False) -> dict:
     is_websocket = isinstance(request, WebSocket)
     token = None
+    global privledge_levels
 
     if is_websocket:
         cookies = request.scope.get("cookies", {})
@@ -45,8 +51,19 @@ def require_session(request: Request | WebSocket, required_role: str | None = No
     if session["expires_at"] < now():
         sessions.pop(token, None)
         handle_auth_failure(status.HTTP_401_UNAUTHORIZED, "Session expired", 4401)
+    
+    if required_role:
+        user_role = session.get("role")
         
-    if required_role and session.get("role") != required_role:
-        handle_auth_failure(status.HTTP_403_FORBIDDEN, "Forbidden", 4403)
+        if not ormore:
+            if user_role != required_role:
+                handle_auth_failure(status.HTTP_403_FORBIDDEN, "Forbidden", 403)
+        else:
+            level_map = dict(privledge_levels)
+            user_level = level_map.get(user_role, 0)
+            required_level = level_map.get(required_role, 0)
+            
+            if user_level < required_level:
+                handle_auth_failure(status.HTTP_403_FORBIDDEN, "Forbidden", 403)
         
     return session

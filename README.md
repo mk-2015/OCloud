@@ -89,17 +89,19 @@ API highlights
 - /api/logout
 - /api/me
 - /api/create_user
-- /api/lsdir/{username}
-- /api/lsfile/{username}
-- /api/mkdir/{username}
-- /api/rmdir/{username}
-- /api/upload/{username}
-- /api/download/{username}/{path}
-- /api/content/{username}/{path}
-- /api/delete/{username}/{path}
-- /api/move/{username}
-- /api/admin/users
-- /api/admin/files/{username}
+- /api/omedia/lsdir/{username}
+- /api/omedia/lsdir/{username}/{path}
+- /api/omedia/lsfile/{username}
+- /api/omedia/lsfile/{username}/{path}
+- /api/omedia/mkdir/{username}
+- /api/omedia/rmdir/{username}
+- /api/omedia/upload/{username}
+- /api/omedia/download/{username}/{path}
+- /api/omedia/content/{username}/{path}
+- /api/omedia/delete/{username}/{path}
+- /api/omedia/move/{username}
+- /api/omedia/admin/users
+- /api/omedia/admin/files/{username}
 - /api/admin/users/{username}
 
 License
