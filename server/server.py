@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 from path import ROOT, DATA, CFIG, LOGF, DABA
 import uvicorn
 import json
@@ -44,6 +45,15 @@ with open(CFIG) as f:
 init_auth_config(config)
 
 app = FastAPI()
+
+class NoCacheMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/static/") or request.url.path.endswith(".html"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+app.add_middleware(NoCacheMiddleware)
 app.include_router(omedia_router)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
     print("[WARNING] Cube is experimental and in non-production form.")
@@ -69,6 +79,12 @@ if config["extendors"]["monitord"]:
     init_monitord()
     
     app.include_router(monitord)
+
+if config["extendors"]["webshell"]:
+    print("[Extendor] extendor \"webshell\" is on.")
+    
+    from modules.extend.webshell import webshell_router
+    app.include_router(webshell_router)
     
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="static")
 

@@ -16,6 +16,7 @@ form.addEventListener('submit', async (event) => {
   const data = await response.json();
 
   if (response.ok) {
+    if (data.token) localStorage.setItem('omedia_token', data.token);
     if (data.role === 'admin') {
       window.location.href = '/omedia/admin.html';
     } else {

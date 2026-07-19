@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webshell</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+    <style>
+        :root {
+            --bg-main: #060913;
+            --bg-card: rgba(11, 17, 30, 0.55);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-cyan: #06b6d4;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', -apple-system, sans-serif;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .header h1 {
+            font-size: 1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header h1 .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            transition: background 0.3s;
+        }
+        .header h1 .dot.connected { background: #22c55e; }
+        .header-actions { display: flex; gap: 10px; }
+        .btn {
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: #fff;
+            background: rgba(255,255,255,0.08);
+            transition: all 0.15s;
+        }
+        .btn:hover { background: rgba(255,255,255,0.15); }
+        #terminal {
+            flex: 1;
+            padding: 8px;
+            background: #0a0e17;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><span class="dot" id="statusDot"></span> Webshell</h1>
+        <div class="header-actions">
+            <a href="/omedia/userdashboard.html" class="btn">Dashboard</a>
+            <button id="logoutBtn" class="btn">Logout</button>
+        </div>
+    </div>
+    <div id="terminal"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+    <script src="/static/webshell.js"></script>
+</body>
+</html>

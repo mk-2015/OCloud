@@ -26,8 +26,11 @@ def require_session(request: Request | WebSocket, required_role: str | None = No
     global privledge_levels
 
     if is_websocket:
-        cookies = request.scope.get("cookies", {})
-        token = cookies.get("omedia_session")
+        token = request.query_params.get("token")
+        print(f"[WS AUTH] query_token={token!r}, cookies={dict(request.scope.get('cookies', {}))!r}")
+        if not token:
+            cookies = request.scope.get("cookies", {})
+            token = cookies.get("omedia_session")
         if not token:
             token = request.headers.get("x-session-token")
     else:
@@ -44,6 +47,7 @@ def require_session(request: Request | WebSocket, required_role: str | None = No
     if not token:
         handle_auth_failure(status.HTTP_401_UNAUTHORIZED, "Missing session token", 4401)
         
+    print(f"[WS AUTH] resolved token={token!r}, sessions_keys={list(sessions.keys())!r}")
     session = sessions.get(token)
     if not session:
         handle_auth_failure(status.HTTP_401_UNAUTHORIZED, "Invalid session token", 4401)

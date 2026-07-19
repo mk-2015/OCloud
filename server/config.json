@@ -19,7 +19,8 @@
 	"extendors":
 	{
 		"fileshare": true,
-		"monitord": true
+		"monitord": true,
+		"webshell": true
 	},
     "admin_password": "admin"
 }
