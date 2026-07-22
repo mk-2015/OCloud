@@ -1,11 +1,21 @@
 let createUserForm = document.getElementById("createUserForm");
 
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+(async () => {
+  await fetch('/api/csrf-token');
+})();
+
 createUserForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     let result = await fetch("/api/create_user", {
         method: "POST",
         headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "X-CSRF-Token": getCsrfToken()
         },
         body: JSON.stringify({
             username: document.getElementById("username").value,

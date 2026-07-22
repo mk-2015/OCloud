@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from path import ROOT, DATA, CFIG, LOGF, DABA
 import uvicorn
@@ -8,6 +9,7 @@ import aiosqlite
 import sys
 import asyncio
 import os
+import atexit
 from modules.omedia import omedia_router
 from modules.auth import init_auth_config
 
@@ -35,6 +37,7 @@ if len(sys.argv) >= 2 and sys.argv[1] == "init":
     sys.exit(0)
 
 logfile = open(LOGF, "a")
+atexit.register(lambda: logfile.close())
 config: dict = {}
 
 with open(CFIG) as f:
@@ -46,6 +49,17 @@ init_auth_config(config)
 
 app = FastAPI()
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
 class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
@@ -53,7 +67,15 @@ class NoCacheMiddleware(BaseHTTPMiddleware):
             response.headers["Cache-Control"] = "no-store"
         return response
 
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(NoCacheMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.include_router(omedia_router)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
     print("[WARNING] Cube is experimental and in non-production form.")
@@ -102,7 +124,6 @@ if __name__ == "__main__":
                 port=port,
                 ssl_certfile=config["ssl"].get("certfile", "./cert.pem"),
                 ssl_keyfile=config["ssl"].get("keyfile", "./key.pem"),
-                reload=True
             )
         else:
             print(f"SSL: None. visit: http://{display_host}:{port}")
@@ -110,10 +131,7 @@ if __name__ == "__main__":
                 "server:app",
                 host=host,
                 port=port,
-                reload=True
             )
 
     except KeyboardInterrupt:
-        logfile.write("Server stopped by user\n")
-        logfile.close()
         print("Server stopped by user")

@@ -4,6 +4,12 @@ const uploadForm = document.getElementById('uploadForm');
 const fileList = document.getElementById('fileList');
 const status = document.getElementById('status');
 
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
 async function loadFiles() {
   const username = usernameInput.value.trim();
   if (!username) {
@@ -27,10 +33,10 @@ async function loadFiles() {
     const item = document.createElement('li');
     item.className = 'file-item';
     item.innerHTML = `
-      <span>${file.name}</span>
+      <span>${escapeHTML(file.name)}</span>
       <div class="file-actions">
         <a href="/api/omedia/download/${encodeURIComponent(username)}/${encodeURIComponent(file.path)}" target="_blank">Download</a>
-        <button data-name="${file.name}" class="link-btn">Delete</button>
+        <button data-name="${escapeHTML(file.name)}" class="link-btn">Delete</button>
       </div>
     `;
     list.appendChild(item);

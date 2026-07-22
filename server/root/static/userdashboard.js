@@ -12,6 +12,17 @@ const shareResult = document.getElementById('shareResult');
 let currentPath = '.';
 let currentUser = null;
 
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
 async function requireSession() {
   const response = await fetch('/api/me');
   if (!response.ok) {
@@ -39,7 +50,7 @@ async function loadFiles(path = currentPath) {
     let build = '';
     parts.forEach((part, index) => {
       build = index === 0 ? part : `${build}/${part}`;
-      breadcrumb.innerHTML += ` / <button class="link-btn" data-path="${build}">${part}</button>`;
+      breadcrumb.innerHTML += ` / <button class="link-btn" data-path="${escapeHTML(build)}">${escapeHTML(part)}</button>`;
     });
   }
   fileList.appendChild(breadcrumb);
@@ -59,12 +70,12 @@ async function loadFiles(path = currentPath) {
     item.innerHTML = `
       <div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
         <span class="file-icon">${icon}</span>
-        <span class="file-name">${entry.name}</span>
+        <span class="file-name">${escapeHTML(entry.name)}</span>
       </div>
       <div class="file-actions">
-        ${isDir ? `<button class="link-btn" data-enter="${entry.path}">Open</button>` : `<a href="/api/omedia/download/${encodeURIComponent(user.username)}/${encodeURIComponent(entry.path)}" target="_blank">Download</a>`}
-        ${!isDir ? `<button class="link-btn btn-share" data-share="${entry.path}">Share</button>` : ''}
-        <button data-name="${entry.path}" class="link-btn btn-delete">Delete</button>
+        ${isDir ? `<button class="link-btn" data-enter="${escapeHTML(entry.path)}">Open</button>` : `<a href="/api/omedia/download/${encodeURIComponent(user.username)}/${encodeURIComponent(entry.path)}" target="_blank">Download</a>`}
+        ${!isDir ? `<button class="link-btn btn-share" data-share="${escapeHTML(entry.path)}">Share</button>` : ''}
+        <button data-name="${escapeHTML(entry.path)}" class="link-btn btn-delete">Delete</button>
       </div>
     `;
     list.appendChild(item);
@@ -88,6 +99,7 @@ uploadForm.addEventListener('submit', async (event) => {
   if (uploadTarget) formData.append('folder', uploadTarget);
   const response = await fetch(`/api/omedia/upload/${encodeURIComponent(user.username)}`, {
     method: 'POST',
+    headers: { 'X-CSRF-Token': getCsrfToken() },
     body: formData,
   });
   const data = await response.json();
@@ -107,7 +119,7 @@ mkdirBtn.addEventListener('click', async () => {
   const targetPath = currentPath && currentPath !== '.' ? `${currentPath}/${name}` : name;
   const response = await fetch(`/api/omedia/mkdir/${encodeURIComponent(user.username)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
     body: JSON.stringify({ path: targetPath }),
   });
   const data = await response.json();
@@ -137,6 +149,7 @@ fileList.addEventListener('click', async (event) => {
     const name = button.getAttribute('data-name');
     const response = await fetch(`/api/omedia/delete/${encodeURIComponent(user.username)}/${encodeURIComponent(name)}`, {
       method: 'DELETE',
+      headers: { 'X-CSRF-Token': getCsrfToken() },
     });
     if (response.ok) {
       status.textContent = 'Deleted.';
@@ -154,7 +167,7 @@ fileList.addEventListener('click', async (event) => {
 });
 
 logoutBtn.addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' });
+  await fetch('/api/logout', { method: 'POST', headers: { 'X-CSRF-Token': getCsrfToken() } });
   window.location.href = '/login.html';
 });
 
@@ -171,7 +184,7 @@ shareForm.addEventListener('submit', async (event) => {
   shareResult.innerHTML = '';
   const response = await fetch('/api/fileshare/upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
     body: JSON.stringify({ filepath, isforever: shareForever.checked }),
   });
   const data = await response.json();
@@ -180,7 +193,7 @@ shareForm.addEventListener('submit', async (event) => {
     shareStatus.textContent = 'Link created!';
     shareResult.innerHTML = `
       <div class="share-link-box">
-        <input id="shareLink" type="text" value="${link}" readonly />
+        <input id="shareLink" type="text" value="${escapeHTML(link)}" readonly />
         <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('shareLink').value).then(() => this.textContent = 'Copied!')">Copy</button>
       </div>
     `;

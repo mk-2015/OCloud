@@ -20,6 +20,6 @@ def resolve_user_path(username: str, raw_path: str):
     if any(part in {"..", ""} for part in parts):
         raise HTTPException(status_code=400, detail="Invalid path")
     target_path = (user_dir / Path(clean_path)).resolve()
-    if not str(target_path).startswith(str(user_dir.resolve())):
+    if not target_path.resolve().is_relative_to(user_dir.resolve()):
         raise HTTPException(status_code=403, detail="Access denied")
     return target_path

@@ -1,6 +1,7 @@
 from fastapi import Request, WebSocket, HTTPException, status
 from datetime import timedelta
 from modules.time_utils import now
+import asyncio
 
 sessions: dict[str, dict] = {}
 ADMIN_USERNAME = "admin"
@@ -16,9 +17,23 @@ class WebSocketAuthException(Exception):
         self.code = code
         self.reason = reason
 
+async def _cleanup_sessions():
+    while True:
+        await asyncio.sleep(300)
+        now_ts = now()
+        expired = [token for token, sess in sessions.items() if sess["expires_at"] < now_ts]
+        for token in expired:
+            sessions.pop(token, None)
+
 def init_auth_config(config_dict: dict):
     global ADMIN_PASSWORD
     ADMIN_PASSWORD = config_dict.get("admin_password", "admin")
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(_cleanup_sessions())
+    except RuntimeError:
+        pass
 
 def require_session(request: Request | WebSocket, required_role: str | None = None, ormore = False) -> dict:
     is_websocket = isinstance(request, WebSocket)
@@ -27,7 +42,6 @@ def require_session(request: Request | WebSocket, required_role: str | None = No
 
     if is_websocket:
         token = request.query_params.get("token")
-        print(f"[WS AUTH] query_token={token!r}, cookies={dict(request.scope.get('cookies', {}))!r}")
         if not token:
             cookies = request.scope.get("cookies", {})
             token = cookies.get("omedia_session")
@@ -47,7 +61,6 @@ def require_session(request: Request | WebSocket, required_role: str | None = No
     if not token:
         handle_auth_failure(status.HTTP_401_UNAUTHORIZED, "Missing session token", 4401)
         
-    print(f"[WS AUTH] resolved token={token!r}, sessions_keys={list(sessions.keys())!r}")
     session = sessions.get(token)
     if not session:
         handle_auth_failure(status.HTTP_401_UNAUTHORIZED, "Invalid session token", 4401)

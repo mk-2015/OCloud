@@ -710,6 +710,17 @@
         let currentFileList = [];
         window.currentEditingFile = null;
 
+        function getCsrfToken() {
+          const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+          return match ? decodeURIComponent(match[1]) : '';
+        }
+
+        function escapeHTML(str) {
+          const div = document.createElement('div');
+          div.appendChild(document.createTextNode(str));
+          return div.innerHTML;
+        }
+
         // Initialize Monaco and Check session
         document.addEventListener("DOMContentLoaded", async () => {
             const sessionRes = await fetch("/api/me");
@@ -780,7 +791,7 @@
             if (type === "success") icon = "✅";
             if (type === "error") icon = "❌";
             
-            toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+            toast.innerHTML = `<span>${icon}</span><span>${escapeHTML(message)}</span>`;
             container.appendChild(toast);
             
             setTimeout(() => {
@@ -805,14 +816,14 @@
             try {
                 const response = await fetch("/api/cube/lambda/launch", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({ os: osSelect.value })
                 });
                 const data = await response.json();
                 
                 if (data.lambda_id) {
                     currentLambdaId = data.lambda_id;
-                    statusDiv.innerHTML = `<span class="badge active">Active</span> <span style="font-size:0.75rem; color:var(--text-secondary);">${data.lambda_id.substring(0,8)}</span>`;
+                    statusDiv.innerHTML = `<span class="badge active">Active</span> <span style="font-size:0.75rem; color:var(--text-secondary);">${escapeHTML(data.lambda_id.substring(0,8))}</span>`;
                     
                     launchBtn.style.display = "none";
                     document.getElementById("btn-shutdown").style.display = "flex";
@@ -848,7 +859,7 @@
                 // Initialize workspace directory and basic welcome.py file inside container
                 await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({
                         lambda_id: currentLambdaId,
                         command: `mkdir -p /workspace && echo -e "# Welcome to OCloud Cube Engine IDE\\nprint('Hello from your sandboxed environment!')\\nprint('You can type command-line instructions inside the terminal below.')" > /workspace/welcome.py`
@@ -949,7 +960,7 @@
             try {
                 const response = await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({
                         lambda_id: currentLambdaId,
                         command: `mkdir -p /workspace && cd /workspace && find . -maxdepth 3 -not -name '.*' -not -path '*/.*' -exec sh -c 'for f do [ -d "$f" ] && echo "D|\${f#.}" || echo "F|\${f#.}|\$(wc -c < "$f" 2>/dev/null || echo 0)"; done' sh {} +`
@@ -1054,16 +1065,16 @@
                 const name = file.path.substring(file.path.lastIndexOf('/') + 1);
                 
                 item.innerHTML = `
-                    <div class="file-info ${colorClass}" onclick="${onClickAction}">
+                    <div class="file-info ${colorClass}" onclick="${escapeHTML(onClickAction)}">
                         <span class="file-icon" style="display:flex; align-items:center; width:16px;">${icon}</span>
-                        <span class="file-name" title="${file.path}">${name}</span>
+                        <span class="file-name" title="${escapeHTML(file.path)}">${escapeHTML(name)}</span>
                     </div>
                     <div class="file-actions">
                         ${file.type === 'F' ? `
-                            <button class="action-btn" onclick="downloadFile('${file.path.replace(/'/g, "\\'")}')" title="Download File">
+                            <button class="action-btn" onclick="${escapeHTML(`downloadFile('${file.path.replace(/'/g, "\\'")}')`)}" title="Download File">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             </button>
-                            <button class="action-btn delete" onclick="deleteFile('${file.path.replace(/'/g, "\\'")}')" title="Delete File">
+                            <button class="action-btn delete" onclick="${escapeHTML(`deleteFile('${file.path.replace(/'/g, "\\'")}')`)}" title="Delete File">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                             </button>
                         ` : ''}
@@ -1087,7 +1098,7 @@
             try {
                 const response = await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({
                         lambda_id: currentLambdaId,
                         command: `base64 "/workspace${filepath}" || cat "/workspace${filepath}"`
@@ -1149,7 +1160,7 @@
             try {
                 const response = await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({
                         lambda_id: currentLambdaId,
                         command: `mkdir -p "/workspace$(dirname "${window.currentEditingFile}")" && echo "${base64Content}" | base64 -d > "/workspace${window.currentEditingFile}"`
@@ -1179,7 +1190,7 @@
             try {
                 const response = await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({
                         lambda_id: currentLambdaId,
                         command: `mkdir -p "/workspace$(dirname "${path}")" && touch "/workspace${path}"`
@@ -1208,7 +1219,7 @@
             try {
                 const response = await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({
                         lambda_id: currentLambdaId,
                         command: `mkdir -p "/workspace${path}"`
@@ -1234,7 +1245,7 @@
             try {
                 const response = await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({
                         lambda_id: currentLambdaId,
                         command: `rm -rf "/workspace${filepath}"`
@@ -1266,7 +1277,7 @@
             try {
                 const response = await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({
                         lambda_id: currentLambdaId,
                         command: `base64 "/workspace${filepath}"`
@@ -1348,7 +1359,7 @@
                 try {
                     const response = await fetch("/api/cube/lamblets/exec", {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                         body: JSON.stringify({
                             lambda_id: currentLambdaId,
                             command: `mkdir -p /workspace && echo "${base64Content}" | base64 -d > "/workspace/${file.name}"`
@@ -1385,7 +1396,7 @@
             try {
                 const response = await fetch("/api/cube/lamblets/exec", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "X-CSRF-Token": getCsrfToken() },
                     body: JSON.stringify({ lambda_id: currentLambdaId, command: command })
                 });
                 const data = await response.json();
@@ -1406,7 +1417,8 @@
             
             try {
                 const response = await fetch(`/api/cube/lambda/shutdown/${currentLambdaId}`, {
-                    method: "DELETE"
+                    method: "DELETE",
+                    headers: { "X-CSRF-Token": getCsrfToken() }
                 });
                 const data = await response.json();
                 

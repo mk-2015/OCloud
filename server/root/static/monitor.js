@@ -24,6 +24,12 @@ const procBody = document.getElementById('procBody');
 const systemBadge = document.getElementById('systemBadge');
 const logoutBtn = document.getElementById('logoutBtn');
 
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
 [cpuFill, memFill, diskFill, swapFill].forEach(c => {
     c.style.strokeDasharray = CIRCUMFERENCE;
     c.style.strokeDashoffset = CIRCUMFERENCE;
@@ -39,7 +45,7 @@ function setGauge(fillEl, pctEl, pct) {
 }
 
 function row(label, value) {
-    return `<div class="info-row"><span class="label">${label}</span><span class="value">${value}</span></div>`;
+    return `<div class="info-row"><span class="label">${escapeHTML(String(label))}</span><span class="value">${escapeHTML(String(value))}</span></div>`;
 }
 
 async function requireSession() {
@@ -111,7 +117,7 @@ async function refresh() {
         ).join('');
 
         procBody.innerHTML = procs.processes.map(p =>
-            `<tr><td>${p.pid}</td><td>${p.name}</td><td>${p.user}</td><td>${p.cpu}</td><td>${p.mem}</td><td>${p.status}</td></tr>`
+            `<tr><td>${escapeHTML(String(p.pid))}</td><td>${escapeHTML(p.name)}</td><td>${escapeHTML(p.user)}</td><td>${escapeHTML(String(p.cpu))}</td><td>${escapeHTML(String(p.mem))}</td><td>${escapeHTML(p.status)}</td></tr>`
         ).join('');
     } catch (e) {
         console.error('Monitor refresh failed:', e);

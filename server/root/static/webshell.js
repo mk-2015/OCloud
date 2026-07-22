@@ -2,6 +2,11 @@ const statusDot = document.getElementById('statusDot');
 const logoutBtn = document.getElementById('logoutBtn');
 const terminalEl = document.getElementById('terminal');
 
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
 const term = new Terminal({
     cursorBlink: true,
     fontSize: 14,
@@ -100,7 +105,7 @@ window.addEventListener('resize', fitAndResize);
 logoutBtn.addEventListener('click', async () => {
     if (ws) ws.close();
     localStorage.removeItem('omedia_token');
-    await fetch('/api/logout', { method: 'POST' });
+    await fetch('/api/logout', { method: 'POST', headers: { 'X-CSRF-Token': getCsrfToken() } });
     window.location.href = '/login.html';
 });
 

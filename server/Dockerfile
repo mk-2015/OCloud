@@ -12,12 +12,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-# RUN python -mvenv .venv && source .venv/bin/activate
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
 RUN dos2unix regen-ssl.sh && chmod +x regen-ssl.sh
+
+RUN groupadd -r ocuser && useradd -r -g ocuser -d /app -s /sbin/nologin ocuser \
+    && mkdir -p /app/data /app/logs \
+    && chown -R ocuser:ocuser /app
+
+USER ocuser
 
 EXPOSE 443
 

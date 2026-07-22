@@ -68,8 +68,8 @@ async def _handle_windows(websocket: WebSocket):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-    except Exception as e:
-        await websocket.send_text(f"Failed to start shell: {e}")
+    except Exception:
+        await websocket.send_text("Failed to start shell")
         await websocket.close(code=1011, reason="Shell spawn failed")
         return
 
@@ -98,7 +98,7 @@ async def _handle_windows(websocket: WebSocket):
 
     try:
         while True:
-            msg = await websocket.receive()
+            msg = await websocket.receive(max_size=1048576)
             if msg["type"] == "websocket.receive":
                 if "bytes" in msg:
                     try:
@@ -165,7 +165,7 @@ async def _handle_unix(websocket: WebSocket):
 
     try:
         while True:
-            msg = await websocket.receive()
+            msg = await websocket.receive(max_size=1048576)
             if msg["type"] == "websocket.receive":
                 if "bytes" in msg:
                     try:

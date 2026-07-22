@@ -1,6 +1,7 @@
 import secrets
 import threading
 import asyncio
+import time
 
 from typing import List, Dict, Any
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, status
@@ -18,6 +19,8 @@ clientnodes: List[docker.DockerClient] = []
 clientidx: int = 0
 islocal: bool = True
 
+_CONTAINER_TTL = 7200
+
 def init_cube(workerarray: List, local = True):
     global clientnodes, clientidx, islocal
     with _node_lock:
@@ -27,11 +30,13 @@ def init_cube(workerarray: List, local = True):
             try:
                 clientnodes = [docker.from_env()]
             except Exception:
+                print("[CUBE WARNING] Docker socket not found. Falling back to tcp://localhost:2375 (unauthenticated). Secure this port or use DOCKER_HOST.")
                 clientnodes = [docker.DockerClient(base_url="tcp://localhost:2375")]
         else:
             islocal = False
             clientidx = 0
             clientnodes = [docker.DockerClient(base_url=url) for url in workerarray]
+    asyncio.get_event_loop().create_task(_cleanup_expired_containers())
 
 def _find_lambda(lambda_id: str, session: dict):
     for server in lmbservers:
@@ -40,6 +45,22 @@ def _find_lambda(lambda_id: str, session: dict):
                 return "forbidden"
             return server
     return None
+
+
+async def _cleanup_expired_containers():
+    while True:
+        await asyncio.sleep(300)
+        now = time.time()
+        with _lmb_lock:
+            expired = [s for s in lmbservers if now - s.get("created_at", now) > _CONTAINER_TTL]
+            for s in expired:
+                lmbservers.remove(s)
+        for s in expired:
+            try:
+                s["container"].stop(timeout=5)
+                s["container"].remove()
+            except Exception:
+                pass
 
 
 @cube_router.post("/api/cube")
@@ -80,7 +101,8 @@ async def launchlambda(request: Request):
             "lambda_id": lambdaid,
             "createdby": session,
             "container": container,
-            "node_client": target_client
+            "node_client": target_client,
+            "created_at": time.time(),
         })
 
     return {"lambda_id": lambdaid, "createdby": session.get("username")}
@@ -122,15 +144,15 @@ async def execlamblet(request: Request):
     with _lmb_lock:
         result = _find_lambda(lambda_id, session)
 
-    if result is None:
-        return JSONResponse(content={"success": False, "reason": "Server id not found"}, status_code=404)
-    if result == "forbidden":
-        return JSONResponse(content={"success": False, "reason": "Not your lambda"}, status_code=403)
+        if result is None:
+            return JSONResponse(content={"success": False, "reason": "Server id not found"}, status_code=404)
+        if result == "forbidden":
+            return JSONResponse(content={"success": False, "reason": "Not your lambda"}, status_code=403)
 
-    loop = asyncio.get_event_loop()
-    exit_code, output = await loop.run_in_executor(
-        None, lambda: result["container"].exec_run(command, demux=True)
-    )
+        loop = asyncio.get_event_loop()
+        exit_code, output = await loop.run_in_executor(
+            None, lambda: result["container"].exec_run(command, demux=True)
+        )
     
     stdout = output[0] if output and output[0] else b""
     stderr = output[1] if output and output[1] else b""
@@ -203,7 +225,7 @@ async def lambda_shell(websocket: WebSocket, lambda_id: str):
     async def pump_ws_to_docker():
         try:
             while True:
-                data = await websocket.receive_bytes()
+                data = await websocket.receive_bytes(max_size=1048576)
                 writer.write(data)
                 await writer.drain()
         except (WebSocketDisconnect, Exception):

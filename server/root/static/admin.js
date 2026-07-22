@@ -3,6 +3,17 @@ const fileList = document.getElementById('fileList');
 const logoutBtn = document.getElementById('logoutBtn');
 let currentUser = null;
 
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
 async function requireAdmin() {
   const response = await fetch('/api/me');
   if (!response.ok) {
@@ -31,11 +42,11 @@ async function loadUsers() {
     item.innerHTML = `
       <div class="file-info file-user">
         <span class="file-icon">👤</span>
-        <span class="file-name">${user.username} <span style="font-size:0.75rem; color:var(--text-secondary);">(${user.email})</span></span>
+        <span class="file-name">${escapeHTML(user.username)} <span style="font-size:0.75rem; color:var(--text-secondary);">(${escapeHTML(user.email)})</span></span>
       </div>
       <div class="file-actions">
-        <button class="link-btn" data-view="${user.username}">View files</button>
-        <button class="link-btn btn-delete" data-delete="${user.username}">Delete</button>
+        <button class="link-btn" data-view="${escapeHTML(user.username)}">View files</button>
+        <button class="link-btn btn-delete" data-delete="${escapeHTML(user.username)}">Delete</button>
       </div>
     `;
     list.appendChild(item);
@@ -60,7 +71,7 @@ async function loadFiles(username) {
     item.innerHTML = `
       <div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
         <span class="file-icon">${icon}</span>
-        <span class="file-name">${entry.name} ${entry.type === 'file' ? `<span style="font-size:0.75rem; color:var(--text-secondary);">(${entry.size} bytes)</span>` : ''}</span>
+        <span class="file-name">${escapeHTML(entry.name)} ${entry.type === 'file' ? `<span style="font-size:0.75rem; color:var(--text-secondary);">(${entry.size} bytes)</span>` : ''}</span>
       </div>
     `;
     list.appendChild(item);
@@ -75,7 +86,7 @@ userList.addEventListener('click', async (event) => {
   if (button.hasAttribute('data-view')) {
     loadFiles(username);
   } else if (button.hasAttribute('data-delete')) {
-    const response = await fetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+    const response = await fetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE', headers: { 'X-CSRF-Token': getCsrfToken() } });
     if (response.ok) {
       loadUsers();
       fileList.innerHTML = '<p class="empty">User deleted.</p>';
@@ -84,7 +95,7 @@ userList.addEventListener('click', async (event) => {
 });
 
 logoutBtn.addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' });
+  await fetch('/api/logout', { method: 'POST', headers: { 'X-CSRF-Token': getCsrfToken() } });
   window.location.href = '/login.html';
 });
 
