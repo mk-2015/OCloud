@@ -22,5 +22,8 @@
 		"monitord": true,
 		"webshell": true
 	},
+	"oworkspace": {
+		"use": true
+	},
     "max_upload_mb": 1024
 }

@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCalc</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  :root {
+    --bg-primary: #0f172a;
+    --bg-card: #1e293b;
+    --bg-card-hover: #253349;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-cyan: #06b6d4;
+    --accent-blue: #3b82f6;
+    --accent-purple: #8b5cf6;
+    --border-color: rgba(148, 163, 184, 0.1);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  [data-theme="light"] {
+    --bg-primary: #f1f5f9;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f8fafc;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent-cyan: #0891b2;
+    --accent-blue: #2563eb;
+    --accent-purple: #7c3aed;
+    --border-color: rgba(15, 23, 42, 0.08);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.1);
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  .calculator {
+    max-width: 420px;
+    margin: 20px auto;
+    padding: 0 16px;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 0;
+  }
+
+  .header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 18px;
+    transition: all 0.15s ease;
+    border: 1px solid var(--border-color);
+  }
+
+  .back-btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+  }
+
+  .display {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+  }
+
+  .expr-line {
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-align: right;
+    min-height: 20px;
+    word-break: break-all;
+    line-height: 1.4;
+    margin-bottom: 4px;
+  }
+
+  .result-line {
+    font-size: 40px;
+    font-weight: 600;
+    text-align: right;
+    color: var(--text-primary);
+    transition: font-size 0.2s;
+    word-break: break-all;
+    line-height: 1.2;
+  }
+
+  .result-line.small {
+    font-size: 24px;
+  }
+
+  .result-line.error {
+    color: #ef4444;
+    font-size: 28px;
+  }
+
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .calc-btn {
+    height: 56px;
+    border-radius: 12px;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    transition: all 0.15s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .calc-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: var(--shadow-md);
+  }
+
+  .calc-btn:active {
+    transform: scale(0.95);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .calc-btn.op {
+    background: rgba(6, 182, 212, 0.12);
+    color: var(--accent-cyan);
+  }
+
+  .calc-btn.op:hover {
+    background: rgba(6, 182, 212, 0.2);
+  }
+
+  .calc-btn.op:active {
+    background: rgba(6, 182, 212, 0.3);
+  }
+
+  .calc-btn.func {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+  }
+
+  .calc-btn.func:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+  }
+
+  .calc-btn.func:active {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .calc-btn.equals {
+    grid-column: span 4;
+    background: linear-gradient(135deg, var(--accent-cyan), #0891b2);
+    color: white;
+    font-weight: 600;
+    font-size: 22px;
+    box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
+  }
+
+  .calc-btn.equals:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 6px 24px rgba(6, 182, 212, 0.5);
+  }
+
+  .calc-btn.equals:active {
+    filter: brightness(0.95);
+    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+  }
+
+  .history {
+    margin-top: 16px;
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+  }
+
+  .history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .history-header span {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+
+  .history-clear {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+
+  .history-clear:hover {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .import-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+
+  .import-btn:hover {
+    color: var(--accent-cyan);
+    background: rgba(6, 182, 212, 0.1);
+  }
+
+  .history-list {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .history-list::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .history-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .history-list::-webkit-scrollbar-thumb {
+    background: var(--text-muted);
+    border-radius: 2px;
+  }
+
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+
+  .history-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .history-expr {
+    color: var(--text-secondary);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .history-eq {
+    color: var(--text-secondary);
+    margin: 0 8px;
+  }
+
+  .history-result {
+    color: var(--text-primary);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .history-empty {
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 16px;
+    font-size: 13px;
+  }
+
+  [data-theme="light"] .calc-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  [data-theme="light"] .calc-btn.op {
+    background: rgba(6, 182, 212, 0.1);
+  }
+
+  [data-theme="light"] .calc-btn.op:hover {
+    background: rgba(6, 182, 212, 0.18);
+  }
+
+  [data-theme="light"] .calc-btn.func {
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  [data-theme="light"] .calc-btn.func:hover {
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  [data-theme="light"] .history-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  [data-theme="light"] .history-clear:hover {
+    background: rgba(239, 68, 68, 0.08);
+  }
+
+  @media (max-width: 480px) {
+    .calculator {
+      margin: 10px auto;
+      padding: 0 10px;
+    }
+
+    .calc-btn {
+      height: 48px;
+      font-size: 18px;
+    }
+
+    .calc-btn.equals {
+      font-size: 20px;
+    }
+
+    .result-line {
+      font-size: 32px;
+    }
+
+    .result-line.small {
+      font-size: 20px;
+    }
+
+    .result-line.error {
+      font-size: 24px;
+    }
+
+    .display {
+      padding: 16px;
+      min-height: 80px;
+    }
+
+    .history {
+      margin-top: 12px;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .calculator {
+      margin-top: 60px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="calculator">
+  <div class="header">
+    <a href="/workspace/" class="back-btn">&larr;</a>
+    <h1>OCalc</h1>
+    <button id="themeToggle" class="btn">&#127769;</button>
+  </div>
+  <div class="display">
+    <div id="exprLine" class="expr-line"></div>
+    <div id="resultLine" class="result-line">0</div>
+  </div>
+  <div class="buttons">
+    <button data-action="clear" class="calc-btn func">C</button>
+    <button data-action="backspace" class="calc-btn func">&#9003;</button>
+    <button data-action="paren" data-value="(" class="calc-btn func">(</button>
+    <button data-action="paren" data-value=")" class="calc-btn func">)</button>
+
+    <button data-action="num" data-value="7" class="calc-btn">7</button>
+    <button data-action="num" data-value="8" class="calc-btn">8</button>
+    <button data-action="num" data-value="9" class="calc-btn">9</button>
+    <button data-action="op" data-value="/" class="calc-btn op">&divide;</button>
+
+    <button data-action="num" data-value="4" class="calc-btn">4</button>
+    <button data-action="num" data-value="5" class="calc-btn">5</button>
+    <button data-action="num" data-value="6" class="calc-btn">6</button>
+    <button data-action="op" data-value="*" class="calc-btn op">&times;</button>
+
+    <button data-action="num" data-value="1" class="calc-btn">1</button>
+    <button data-action="num" data-value="2" class="calc-btn">2</button>
+    <button data-action="num" data-value="3" class="calc-btn">3</button>
+    <button data-action="op" data-value="-" class="calc-btn op">&minus;</button>
+
+    <button data-action="negate" class="calc-btn">&plusmn;</button>
+    <button data-action="num" data-value="0" class="calc-btn">0</button>
+    <button data-action="decimal" class="calc-btn">.</button>
+    <button data-action="op" data-value="+" class="calc-btn op">+</button>
+
+    <button data-action="equals" class="calc-btn equals">=</button>
+  </div>
+  <div class="history">
+    <div class="history-header">
+      <span>History</span>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button id="importBtn" class="import-btn">Import</button>
+        <button id="clearHistory" class="history-clear">Clear All</button>
+      </div>
+    </div>
+    <input type="file" id="importInput" style="display:none" accept=".txt,.csv">
+    <div id="historyList" class="history-list"></div>
+  </div>
+</div>
+
+<script src="/static/theme.js"></script>
+<script src="/static/utils.js"></script>
+<script src="/static/toasts.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  fetch('/api/me').then(function(r) {
+    if (!r.ok) window.location.href = '/login.html';
+  }).catch(function() {
+    window.location.href = '/login.html';
+  });
+
+  var expression = '';
+  var displayExpr = '';
+  var currentInput = '0';
+  var history = [];
+  var justEvaluated = false;
+  var MAX_HISTORY = 10;
+
+  var exprLine = document.getElementById('exprLine');
+  var resultLine = document.getElementById('resultLine');
+  var historyList = document.getElementById('historyList');
+  var buttonsContainer = document.querySelector('.buttons');
+  var themeToggle = document.getElementById('themeToggle');
+  var clearHistoryBtn = document.getElementById('clearHistory');
+  var importBtn = document.getElementById('importBtn');
+  var importInput = document.getElementById('importInput');
+
+  function escapeHTML(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+  }
+
+  function formatNumber(n) {
+    if (n === 'Error') return 'Error';
+    if (typeof n !== 'number') return String(n);
+    var absVal = Math.abs(n);
+    if (absVal !== 0 && (absVal >= 1e15 || absVal < 1e-10)) {
+      return n.toExponential(6);
+    }
+    var s = String(n);
+    if (s.length <= 16) {
+      return n % 1 === 0 ? String(n) : parseFloat(n.toPrecision(12)).toString();
+    }
+    return n.toExponential(6);
+  }
+
+  function displayOp(op) {
+    var map = {
+      '+': '+',
+      '-': '\u2212',
+      '*': '\u00d7',
+      '/': '\u00f7'
+    };
+    return map[op] || op;
+  }
+
+  function safeEval(expr) {
+    var sanitized = expr.replace(/\u00f7/g, '/').replace(/\u00d7/g, '*').replace(/\u2212/g, '-');
+    sanitized = sanitized.replace(/[^0-9+\-*/().\s]/g, '');
+    sanitized = sanitized.replace(/[+\-*/]\s*$/, '').trim();
+    if (!sanitized) return 'Error';
+    try {
+      var result = new Function('return ' + sanitized)();
+      if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) {
+        return 'Error';
+      }
+      return Math.round(result * 1e10) / 1e10;
+    } catch (e) {
+      return 'Error';
+    }
+  }
+
+  function updateDisplay() {
+    exprLine.textContent = displayExpr || '\u00a0';
+    resultLine.textContent = currentInput;
+    resultLine.className = 'result-line';
+    if (currentInput === 'Error') {
+      resultLine.classList.add('error');
+    } else if (currentInput.length > 14) {
+      resultLine.classList.add('small');
+    }
+  }
+
+  function renderHistory() {
+    if (history.length === 0) {
+      historyList.innerHTML = '<div class="history-empty">No calculations yet</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < history.length; i++) {
+      var h = history[i];
+      html += '<div class="history-item" data-result="' + escapeHTML(h.result) + '">';
+      html += '<span class="history-expr">' + escapeHTML(h.expr) + '</span>';
+      html += '<span class="history-eq">=</span>';
+      html += '<span class="history-result">' + escapeHTML(h.result) + '</span>';
+      html += '</div>';
+    }
+    historyList.innerHTML = html;
+    var items = historyList.querySelectorAll('.history-item');
+    for (var j = 0; j < items.length; j++) {
+      items[j].addEventListener('click', (function(item) {
+        return function() {
+          currentInput = item.getAttribute('data-result');
+          justEvaluated = true;
+          updateDisplay();
+        };
+      })(items[j]));
+    }
+  }
+
+  function handleNum(d) {
+    if (justEvaluated) {
+      expression = '';
+      displayExpr = '';
+      justEvaluated = false;
+    }
+    if (currentInput === '0' && d !== '0') {
+      currentInput = d;
+    } else if (currentInput === '0' && d === '0') {
+      // stay 0
+    } else if (currentInput === 'Error') {
+      currentInput = d;
+      expression = '';
+      displayExpr = '';
+    } else {
+      currentInput += d;
+    }
+    updateDisplay();
+  }
+
+  function handleDecimal() {
+    if (justEvaluated) {
+      expression = '';
+      displayExpr = '';
+      currentInput = '0';
+      justEvaluated = false;
+    }
+    if (currentInput === 'Error') {
+      currentInput = '0.';
+      expression = '';
+      displayExpr = '';
+      updateDisplay();
+      return;
+    }
+    if (!currentInput.includes('.')) {
+      currentInput += '.';
+    }
+    updateDisplay();
+  }
+
+  function handleOp(op) {
+    if (currentInput === 'Error') {
+      expression = '';
+      displayExpr = '';
+      currentInput = '0';
+    }
+    justEvaluated = false;
+    expression += currentInput + ' ' + op + ' ';
+    displayExpr += currentInput + ' ' + displayOp(op) + ' ';
+    currentInput = '0';
+    updateDisplay();
+  }
+
+  function handleEquals() {
+    if (currentInput === 'Error') return;
+    var fullExpr = expression + currentInput;
+    var displayFull = displayExpr + currentInput;
+    if (!fullExpr.trim()) return;
+    var result = safeEval(fullExpr);
+    var resultStr = formatNumber(result);
+    history.unshift({ expr: displayFull, result: resultStr });
+    if (history.length > MAX_HISTORY) {
+      history.pop();
+    }
+    renderHistory();
+    expression = '';
+    displayExpr = '';
+    currentInput = resultStr;
+    justEvaluated = true;
+    updateDisplay();
+  }
+
+  function handleClear() {
+    expression = '';
+    displayExpr = '';
+    currentInput = '0';
+    justEvaluated = false;
+    updateDisplay();
+  }
+
+  function handleBackspace() {
+    if (justEvaluated) {
+      handleClear();
+      return;
+    }
+    if (currentInput === 'Error') {
+      handleClear();
+      return;
+    }
+    if (currentInput.length > 1) {
+      currentInput = currentInput.slice(0, -1);
+    } else {
+      currentInput = '0';
+    }
+    updateDisplay();
+  }
+
+  function handleParen(p) {
+    if (currentInput === 'Error') {
+      expression = '';
+      displayExpr = '';
+      currentInput = '0';
+    }
+    if (justEvaluated && p === '(') {
+      expression = '';
+      displayExpr = '';
+      justEvaluated = false;
+    }
+    if (justEvaluated && p === ')') {
+      justEvaluated = false;
+    }
+    if (p === '(') {
+      if (currentInput !== '0' && currentInput !== '' && !justEvaluated) {
+        expression += currentInput + ' * ';
+        displayExpr += currentInput + ' \u00d7 ';
+      }
+      expression += '(';
+      displayExpr += '(';
+      currentInput = '0';
+    } else {
+      if (currentInput !== '0' && currentInput !== '') {
+        expression += currentInput;
+        displayExpr += currentInput;
+      }
+      expression += ')';
+      displayExpr += ')';
+      currentInput = '0';
+    }
+    justEvaluated = false;
+    updateDisplay();
+  }
+
+  function handleNegate() {
+    if (currentInput === '0' || currentInput === 'Error') return;
+    if (currentInput.startsWith('-')) {
+      currentInput = currentInput.slice(1);
+    } else {
+      currentInput = '-' + currentInput;
+    }
+    updateDisplay();
+  }
+
+  function handlePercent() {
+    if (currentInput === 'Error') return;
+    var num = parseFloat(currentInput);
+    if (isNaN(num)) return;
+    if (expression.trim()) {
+      var baseParts = expression.trim().split(/\s+/);
+      var base = parseFloat(baseParts[baseParts.length - 1]);
+      if (!isNaN(base)) {
+        num = base * (num / 100);
+      } else {
+        num = num / 100;
+      }
+    } else {
+      num = num / 100;
+    }
+    currentInput = formatNumber(Math.round(num * 1e10) / 1e10);
+    updateDisplay();
+  }
+
+  buttonsContainer.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var action = btn.getAttribute('data-action');
+    var value = btn.getAttribute('data-value');
+    switch (action) {
+      case 'num':
+        handleNum(value);
+        break;
+      case 'op':
+        handleOp(value);
+        break;
+      case 'decimal':
+        handleDecimal();
+        break;
+      case 'equals':
+        handleEquals();
+        break;
+      case 'clear':
+        handleClear();
+        break;
+      case 'backspace':
+        handleBackspace();
+        break;
+      case 'paren':
+        handleParen(value);
+        break;
+      case 'negate':
+        handleNegate();
+        break;
+      case 'percent':
+        handlePercent();
+        break;
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    var tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    var k = e.key;
+    if (k >= '0' && k <= '9') {
+      e.preventDefault();
+      handleNum(k);
+    } else if (k === '.') {
+      e.preventDefault();
+      handleDecimal();
+    } else if (k === '+') {
+      e.preventDefault();
+      handleOp('+');
+    } else if (k === '-') {
+      e.preventDefault();
+      handleOp('-');
+    } else if (k === '*') {
+      e.preventDefault();
+      handleOp('*');
+    } else if (k === '/') {
+      e.preventDefault();
+      handleOp('/');
+    } else if (k === 'Enter' || k === '=') {
+      e.preventDefault();
+      handleEquals();
+    } else if (k === 'Escape') {
+      e.preventDefault();
+      handleClear();
+    } else if (k === 'Backspace') {
+      e.preventDefault();
+      handleBackspace();
+    } else if (k === '(') {
+      e.preventDefault();
+      handleParen('(');
+    } else if (k === ')') {
+      e.preventDefault();
+      handleParen(')');
+    } else if (k === '%') {
+      e.preventDefault();
+      handlePercent();
+    }
+  });
+
+  themeToggle.addEventListener('click', function() {
+    if (typeof toggleTheme === 'function') {
+      toggleTheme();
+    } else {
+      var html = document.documentElement;
+      var current = html.getAttribute('data-theme');
+      var next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      themeToggle.textContent = next === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
+      try { localStorage.setItem('theme', next); } catch (e) {}
+    }
+  });
+
+  clearHistoryBtn.addEventListener('click', function() {
+    history = [];
+    renderHistory();
+    if (typeof showToast === 'function') {
+      showToast('History cleared', 'info');
+    }
+  });
+
+  importBtn.addEventListener('click', function() {
+    importInput.click();
+  });
+
+  importInput.addEventListener('change', function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var lines = ev.target.result.split(/\r?\n/);
+      var imported = 0;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        var result = safeEval(line);
+        if (result === 'Error') continue;
+        var resultStr = formatNumber(result);
+        history.unshift({ expr: line, result: resultStr });
+        imported++;
+      }
+      if (history.length > MAX_HISTORY) {
+        history.length = MAX_HISTORY;
+      }
+      renderHistory();
+      if (typeof showToast === 'function') {
+        showToast('Imported ' + imported + ' expression' + (imported !== 1 ? 's' : ''), 'info');
+      }
+    };
+    reader.readAsText(file);
+    importInput.value = '';
+  });
+
+  function initTheme() {
+    try {
+      var saved = localStorage.getItem('theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+        themeToggle.textContent = saved === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
+      }
+    } catch (e) {}
+  }
+
+  function init() {
+    initTheme();
+    renderHistory();
+    updateDisplay();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

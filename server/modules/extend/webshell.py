@@ -27,9 +27,12 @@ if not _IS_WINDOWS:
 webshell_router = APIRouter()
 
 
-def _detect_shell() -> list[str]:
+def _detect_shell(use_winpty: bool = False) -> list[str]:
     system = platform.system()
     if system == "Windows":
+        cmd = shutil.which("cmd.exe")
+        if use_winpty and cmd:
+            return [cmd]
         for name, args in [
             ("powershell.exe", ["-NoLogo", "-NoProfile", "-NoExit"]),
             ("pwsh.exe", ["-NoLogo", "-NoProfile", "-NoExit"]),
@@ -37,7 +40,6 @@ def _detect_shell() -> list[str]:
             path = shutil.which(name)
             if path:
                 return [path, *args]
-        cmd = shutil.which("cmd.exe")
         if cmd:
             return [cmd]
         raise FileNotFoundError("No suitable shell found on PATH")
@@ -60,7 +62,7 @@ async def shell_ws(websocket: WebSocket):
         await websocket.accept()
         await websocket.close(code=ae.code, reason=ae.reason)
         return
-    except Exception:
+    except Exception as e:
         await websocket.accept()
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Auth failure")
         return
@@ -72,27 +74,33 @@ async def shell_ws(websocket: WebSocket):
             await _handle_windows(websocket)
         else:
             await _handle_unix(websocket)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[WEBSHELL] handler error: {type(e).__name__}: {e}")
+        try:
+            await websocket.close(code=1011, reason=str(e)[:120])
+        except Exception:
+            pass
 
 
 async def _handle_windows(websocket: WebSocket):
-    cmd = _detect_shell()
     loop = asyncio.get_running_loop()
     cols, rows = 80, 24
 
-    pty = None
+    pty_obj = None
     proc = None
 
     if _winpty is not None:
         try:
-            pty = _winpty.PTY(cols, rows)
-            pty.spawn(cmd[0], " ".join(cmd[1:]) if len(cmd) > 1 else None)
-        except Exception:
-            pty = None
+            cmd = _detect_shell(use_winpty=True)
+            pty_obj = _winpty.PTY(cols, rows)
+            pty_obj.spawn(cmd[0], " ".join(cmd[1:]) if len(cmd) > 1 else None)
+        except Exception as e:
+            print(f"[WEBSHELL] winpty spawn failed: {e}")
+            pty_obj = None
 
-    if pty is None:
+    if pty_obj is None:
         try:
+            cmd = _detect_shell(use_winpty=False)
             creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
             proc = subprocess.Popen(
                 cmd,
@@ -110,8 +118,8 @@ async def _handle_windows(websocket: WebSocket):
     async def read_output():
         try:
             while True:
-                if pty:
-                    data = await loop.run_in_executor(None, pty.read, True)
+                if pty_obj:
+                    data = await loop.run_in_executor(None, pty_obj.read, True)
                     if not data:
                         break
                     await websocket.send_bytes(data.encode("utf-8", errors="replace"))
@@ -138,18 +146,21 @@ async def _handle_windows(websocket: WebSocket):
     output_task = asyncio.create_task(read_output())
     stderr_task = asyncio.create_task(read_stderr())
 
+    print(f"[WEBSHELL] shell started, winpty={pty_obj is not None}, proc={proc is not None}")
+
     try:
         while True:
-            msg = await websocket.receive(max_size=1048576)
+            msg = await websocket.receive()
             if msg["type"] == "websocket.receive":
                 if "bytes" in msg:
                     try:
-                        if pty:
-                            await loop.run_in_executor(None, pty.write, msg["bytes"].decode("utf-8", errors="replace"))
+                        if pty_obj:
+                            await loop.run_in_executor(None, pty_obj.write, msg["bytes"].decode("utf-8", errors="replace"))
                         else:
                             await loop.run_in_executor(None, proc.stdin.write, msg["bytes"])
                             await loop.run_in_executor(None, proc.stdin.flush)
-                    except Exception:
+                    except Exception as e:
+                        print(f"[WEBSHELL] write error: {e}")
                         break
                 elif "text" in msg:
                     data = msg["text"]
@@ -157,44 +168,58 @@ async def _handle_windows(websocket: WebSocket):
                         await websocket.close(code=1000, reason="Shell exited")
                         break
                     if data.startswith("\x1b["):
-                        if pty:
+                        if pty_obj:
                             try:
                                 parts = data[2:].rstrip("R").split(";")
                                 r = int(parts[0])
                                 c = int(parts[1])
-                                cols, rows = c, r
-                                await loop.run_in_executor(None, pty.set_size, c, r)
-                            except (ValueError, IndexError):
+                                if r > 0 and c > 0:
+                                    cols, rows = c, r
+                                    await loop.run_in_executor(None, pty_obj.set_size, c, r)
+                            except Exception:
                                 pass
                         continue
                     try:
-                        if pty:
-                            await loop.run_in_executor(None, pty.write, data)
+                        if pty_obj:
+                            await loop.run_in_executor(None, pty_obj.write, data)
                         else:
                             await loop.run_in_executor(None, proc.stdin.write, data.encode())
                             await loop.run_in_executor(None, proc.stdin.flush)
-                    except Exception:
+                    except Exception as e:
+                        print(f"[WEBSHELL] write error: {e}")
                         break
             elif msg["type"] == "websocket.disconnect":
+                print("[WEBSHELL] client disconnected")
                 break
     except WebSocketDisconnect:
+        print("[WEBSHELL] WebSocketDisconnect")
         pass
-    except Exception:
+    except Exception as e:
+        print(f"[WEBSHELL] main loop error: {type(e).__name__}: {e}")
         pass
     finally:
+        print("[WEBSHELL] cleaning up")
         output_task.cancel()
         stderr_task.cancel()
-        if pty and pty.isalive():
+        if pty_obj and pty_obj.isalive():
             try:
-                os.kill(pty.pid, signal.SIGTERM)
+                os.kill(pty_obj.pid, signal.SIGTERM)
             except OSError:
                 pass
         elif proc and proc.poll() is None:
             proc.terminate()
+        try:
+            await websocket.close(code=1000)
+        except Exception:
+            pass
 
 
 async def _handle_unix(websocket: WebSocket):
-    cmd = _detect_shell()
+    try:
+        cmd = _detect_shell()
+    except FileNotFoundError as e:
+        await websocket.close(code=1011, reason=str(e)[:120])
+        return
 
     master_fd, slave_fd = pty.openpty()
 
@@ -227,7 +252,7 @@ async def _handle_unix(websocket: WebSocket):
 
     try:
         while True:
-            msg = await websocket.receive(max_size=1048576)
+            msg = await websocket.receive()
             if msg["type"] == "websocket.receive":
                 if "bytes" in msg:
                     try:
@@ -267,3 +292,7 @@ async def _handle_unix(websocket: WebSocket):
             pass
         if proc.returncode is None:
             proc.terminate()
+        try:
+            await websocket.close(code=1000)
+        except Exception:
+            pass

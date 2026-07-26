@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ODocs</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: #1e293b;
+      --border-color: #334155;
+      --accent-cyan: #06b6d4;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+    }
+
+    [data-theme="light"] {
+      --bg-main: #f8fafc;
+      --bg-card: #ffffff;
+      --border-color: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: var(--bg-main);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-color) transparent;
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-secondary);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .header h1 {
+      flex: 1;
+      font-size: 1.2rem;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .back-btn {
+      background: none;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 18px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .back-btn:hover {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .btn:hover {
+      border-color: var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      background: var(--accent-cyan);
+      color: #0f172a;
+      border-color: var(--accent-cyan);
+    }
+
+    .btn-primary:hover {
+      filter: brightness(1.15);
+      color: #0f172a;
+    }
+
+    .save-status {
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+
+    .save-status.saving {
+      color: var(--accent-cyan);
+    }
+
+    .save-status.saved {
+      color: #10b981;
+    }
+
+    .doc-name {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      min-width: 200px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .doc-name:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .doc-name:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    #pickerView {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .picker-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .file-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+      padding: 24px 20px;
+      width: 100%;
+      max-width: 900px;
+      align-content: start;
+    }
+
+    .file-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .file-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 8px 24px rgba(6, 182, 212, 0.1);
+    }
+
+    .file-card-new {
+      border-style: dashed;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      padding: 32px 20px;
+    }
+
+    .file-card-new:hover {
+      color: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+    }
+
+    .file-card-new .plus {
+      font-size: 2rem;
+      line-height: 1;
+    }
+
+    .file-icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+
+    .file-name {
+      font-weight: 600;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-meta {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state p {
+      margin-bottom: 16px;
+      font-size: 15px;
+    }
+
+    #editorView {
+      display: none;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .editor-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #toolbar {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    #editor {
+      flex: 1;
+      overflow: auto;
+    }
+
+    .editor-body .ql-toolbar.ql-snow {
+      background: var(--bg-card);
+      border-color: var(--border-color);
+      padding: 6px 16px;
+    }
+
+    .editor-body .ql-container.ql-snow {
+      border: none;
+      flex: 1;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 1rem;
+      color: var(--text-primary);
+      background: var(--bg-card);
+    }
+
+    .ql-editor {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 16px;
+      line-height: 1.7;
+      padding: 32px 48px;
+      min-height: 100%;
+    }
+
+    .ql-editor.ql-blank::before {
+      color: var(--text-secondary);
+      font-style: normal;
+    }
+
+    .ql-toolbar .ql-stroke {
+      stroke: var(--text-secondary);
+    }
+
+    .ql-toolbar .ql-fill {
+      fill: var(--text-secondary);
+    }
+
+    .ql-toolbar button:hover .ql-stroke,
+    .ql-toolbar .ql-active .ql-stroke {
+      stroke: var(--accent-cyan);
+    }
+
+    .ql-toolbar button:hover .ql-fill,
+    .ql-toolbar .ql-active .ql-fill {
+      fill: var(--accent-cyan);
+    }
+
+    .ql-toolbar button:hover,
+    .ql-toolbar .ql-active {
+      color: var(--accent-cyan);
+    }
+
+    .ql-toolbar .ql-picker {
+      color: var(--text-secondary);
+    }
+
+    .ql-toolbar .ql-picker-options {
+      background: var(--bg-card);
+      border-color: var(--border-color);
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    [data-theme="light"] .ql-toolbar .ql-picker-options {
+      background: #ffffff;
+    }
+
+    .ql-toolbar .ql-picker-label.ql-active .ql-stroke {
+      stroke: var(--accent-cyan);
+    }
+
+    .ql-toolbar .ql-picker-label.ql-active {
+      color: var(--accent-cyan);
+    }
+
+    .ql-snow .ql-tooltip {
+      background: var(--bg-card) !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-primary) !important;
+      border-radius: 6px !important;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+    }
+
+    [data-theme="light"] .ql-snow .ql-tooltip {
+      background: #ffffff !important;
+    }
+
+    .ql-snow .ql-tooltip input {
+      color: var(--text-primary);
+      background: rgba(128, 128, 128, 0.1);
+      border-color: var(--border-color);
+      border-radius: 4px;
+    }
+
+    [data-theme="light"] .ql-snow .ql-tooltip input {
+      color: var(--text-primary);
+      background: rgba(0, 0, 0, 0.04);
+    }
+
+    .ql-snow a {
+      color: var(--accent-cyan);
+    }
+
+    .ql-editor blockquote {
+      border-left: 4px solid var(--accent-cyan);
+      padding-left: 12px;
+      color: var(--text-secondary);
+    }
+
+    .ql-editor pre.ql-syntax {
+      background: rgba(0, 0, 0, 0.3) !important;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 12px 16px;
+      font-family: 'Fira Code', 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+
+    [data-theme="light"] .ql-editor pre.ql-syntax {
+      background: rgba(0, 0, 0, 0.06) !important;
+      color: var(--text-primary);
+    }
+
+    .ql-editor h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+
+    .ql-editor h2 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      line-height: 1.35;
+    }
+
+    .ql-editor h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .ql-editor p {
+      margin-bottom: 8px;
+    }
+
+    .ql-editor ul,
+    .ql-editor ol {
+      padding-left: 24px;
+      margin-bottom: 8px;
+    }
+
+    .ql-editor li {
+      margin-bottom: 4px;
+    }
+
+    .ql-editor img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.hidden { display: none; }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      width: 90%;
+      max-width: 560px;
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .modal-close:hover {
+      color: var(--text-primary);
+      background: var(--border-color);
+    }
+
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .modal-body .empty-msg {
+      text-align: center;
+      color: var(--text-secondary);
+      padding: 32px 16px;
+      font-size: 14px;
+    }
+
+    .omedia-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .omedia-item:hover {
+      background: var(--border-color);
+    }
+
+    .omedia-item .file-icon {
+      font-size: 1.4rem;
+      margin-bottom: 0;
+      flex-shrink: 0;
+    }
+
+    .omedia-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .omedia-item-name {
+      font-weight: 600;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .omedia-item-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    @media (max-width: 768px) {
+      .header {
+        flex-wrap: wrap;
+        padding: 10px 12px;
+        gap: 8px;
+      }
+
+      .header h1 {
+        font-size: 1rem;
+      }
+
+      .doc-name {
+        min-width: 80px;
+        flex: 1;
+        order: 3;
+      }
+
+      .header-actions {
+        gap: 4px;
+      }
+
+      .btn {
+        padding: 6px 10px;
+        font-size: 13px;
+      }
+
+      .file-grid {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+
+      .ql-editor {
+        padding: 16px;
+      }
+
+      .editor-body .ql-toolbar.ql-snow {
+        padding: 4px 8px;
+        overflow-x: auto;
+      }
+
+      .ql-toolbar .ql-formats {
+        margin-right: 8px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .header {
+        padding: 8px 10px;
+      }
+
+      .save-status {
+        font-size: 11px;
+      }
+
+      .file-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: 12px;
+      }
+
+      .file-card {
+        padding: 16px 14px;
+      }
+
+      .ql-editor {
+        padding: 12px;
+        font-size: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="pickerView">
+    <div class="header">
+      <a href="/workspace/" class="back-btn">&larr;</a>
+      <h1>ODocs</h1>
+      <button id="btnNew" class="btn">New Document</button>
+      <button id="btnImportOMedia" class="btn">Import from OMedia</button>
+      <button id="btnOpenDisk" class="btn">Open from Disk</button>
+    </div>
+    <div class="picker-body">
+      <div id="fileGrid" class="file-grid"></div>
+    </div>
+    <div id="emptyState" class="empty-state" style="display:none">
+      <p>No documents yet</p>
+      <button id="btnNewEmpty" class="btn btn-primary">Create your first document</button>
+    </div>
+  </div>
+
+  <input type="file" id="diskInput" style="display:none" accept=".txt,.md,.html,.json,.csv,.xml,.log,.yaml,.yml,.toml,.ini,.conf,.cfg,.sh,.py,.js,.ts,.css,.sql">
+
+  <div id="omediaModal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Import from OMedia</h2>
+        <button id="omediaModalClose" class="modal-close">&times;</button>
+      </div>
+      <div id="omediaModalBody" class="modal-body">
+        <div class="empty-msg">Loading files...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="editorView" style="display:none">
+    <div class="header">
+      <button id="btnBack" class="back-btn">&larr;</button>
+      <input id="docName" class="doc-name" value="" placeholder="Document name">
+      <div class="header-actions">
+        <span id="saveStatus" class="save-status"></span>
+        <button id="btnSave" class="btn">Save</button>
+        <button id="themeToggle" class="btn">&#127769;</button>
+      </div>
+    </div>
+    <div class="editor-body">
+      <div id="toolbar">
+        <span class="ql-formats">
+          <select class="ql-header">
+            <option value="1">H1</option>
+            <option value="2">H2</option>
+            <option value="3">H3</option>
+            <option selected>Normal</option>
+          </select>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-bold"></button>
+          <button class="ql-italic"></button>
+          <button class="ql-underline"></button>
+          <button class="ql-strike"></button>
+        </span>
+        <span class="ql-formats">
+          <select class="ql-color"></select>
+          <select class="ql-background"></select>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-list" value="ordered"></button>
+          <button class="ql-list" value="bullet"></button>
+          <button class="ql-indent" value="-1"></button>
+          <button class="ql-indent" value="+1"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-blockquote"></button>
+          <button class="ql-code-block"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-link"></button>
+          <button class="ql-image"></button>
+          <button class="ql-video"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-clean"></button>
+        </span>
+      </div>
+      <div id="editor"></div>
+    </div>
+  </div>
+
+  <script src="/static/theme.js"></script>
+  <script src="/static/utils.js"></script>
+  <script src="/static/toasts.js"></script>
+  <script src="/static/workspace.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+  <script>
+    (function () {
+      var quill = null;
+      var currentFile = null;
+      var currentData = null;
+      var hasChanges = false;
+      var lastSaved = '';
+      var autoSaveTimer = null;
+
+      var picker = document.getElementById('pickerView');
+      var editorView = document.getElementById('editorView');
+      var fileGrid = document.getElementById('fileGrid');
+      var emptyState = document.getElementById('emptyState');
+      var docNameInput = document.getElementById('docName');
+      var saveStatus = document.getElementById('saveStatus');
+      var btnSave = document.getElementById('btnSave');
+
+      async function init() {
+        try {
+          var me = await fetch('/api/me');
+          if (!me.ok) {
+            window.location.href = '/login.html';
+            return;
+          }
+          var meData = await me.json();
+          window._ocloudUser = meData.username || meData.user;
+          var params = new URLSearchParams(window.location.search);
+          var openFile = params.get('file');
+          if (openFile) {
+            await openDocument(openFile);
+          } else {
+            loadFileList();
+          }
+        } catch (e) {
+          window.location.href = '/login.html';
+        }
+      }
+
+      var omediaModal = document.getElementById('omediaModal');
+      var omediaModalBody = document.getElementById('omediaModalBody');
+      var diskInput = document.getElementById('diskInput');
+
+      function openOMediaModal() {
+        omediaModal.classList.remove('hidden');
+        omediaModalBody.innerHTML = '<div class="empty-msg">Loading files...</div>';
+        loadOMediaFiles();
+      }
+
+      function closeOMediaModal() {
+        omediaModal.classList.add('hidden');
+      }
+
+      async function loadOMediaFiles() {
+        try {
+          var username = window._ocloudUser;
+          if (!username) {
+            omediaModalBody.innerHTML = '<div class="empty-msg">User not loaded</div>';
+            return;
+          }
+          var res = await fetch('/api/omedia/lsfile/' + encodeURIComponent(username));
+          if (!res.ok) throw new Error();
+          var data = await res.json();
+          var files = (data.files || data || []).filter(function (f) {
+            var name = (f.name || f.filename || '').toLowerCase();
+            return /\.(txt|md|html|json|csv|xml|log|yaml|yml|toml|ini|conf|cfg|sh|py|js|ts|css|sql)$/.test(name);
+          });
+          if (files.length === 0) {
+            omediaModalBody.innerHTML = '<div class="empty-msg">No text files found in OMedia</div>';
+            return;
+          }
+          omediaModalBody.innerHTML = '';
+          files.forEach(function (f) {
+            var item = document.createElement('div');
+            item.className = 'omedia-item';
+            var fname = f.name || f.filename || '';
+            var fsize = f.size ? formatSize(f.size) : '';
+            item.innerHTML =
+              '<div class="file-icon">&#128196;</div>' +
+              '<div class="omedia-item-info">' +
+                '<div class="omedia-item-name">' + escapeHTML(fname) + '</div>' +
+                '<div class="omedia-item-meta">' + escapeHTML(fsize) + '</div>' +
+              '</div>';
+            item.addEventListener('click', function () {
+              importFromOMedia(fname);
+            });
+            omediaModalBody.appendChild(item);
+          });
+        } catch (e) {
+          omediaModalBody.innerHTML = '<div class="empty-msg">Failed to load OMedia files</div>';
+        }
+      }
+
+      async function importFromOMedia(filename) {
+        try {
+          closeOMediaModal();
+          var username = window._ocloudUser;
+          var url = '/api/omedia/download/' + encodeURIComponent(username) + '/' + encodeURIComponent(filename);
+          var res = await fetch(url);
+          if (!res.ok) throw new Error();
+          var text = await res.text();
+          var docLabel = filename.replace(/\.[^.]+$/, '');
+          var createRes = await WorkspaceAPI.createFile(docLabel + '.odoc', 'odoc');
+          if (!createRes) throw new Error();
+          initQuill();
+          quill.setText(text);
+          currentFile = createRes.file.filename;
+          currentData = createRes.file;
+          docNameInput.value = docLabel;
+          hasChanges = true;
+          await saveDocument();
+          hasChanges = false;
+          lastSaved = JSON.stringify(quill.getContents());
+          picker.style.display = 'none';
+          editorView.style.display = 'flex';
+          window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(currentFile));
+          showToast('Imported from OMedia', 'success');
+        } catch (e) {
+          showToast('Failed to import from OMedia', 'error');
+        }
+      }
+
+      document.getElementById('btnImportOMedia').addEventListener('click', openOMediaModal);
+      document.getElementById('omediaModalClose').addEventListener('click', closeOMediaModal);
+      omediaModal.addEventListener('click', function (e) {
+        if (e.target === omediaModal) closeOMediaModal();
+      });
+
+      document.getElementById('btnOpenDisk').addEventListener('click', function () {
+        diskInput.value = '';
+        diskInput.click();
+      });
+
+      diskInput.addEventListener('change', function () {
+        var file = diskInput.files && diskInput.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = async function () {
+          try {
+            var text = reader.result;
+            var docLabel = file.name.replace(/\.[^.]+$/, '');
+            var createRes = await WorkspaceAPI.createFile(docLabel + '.odoc', 'odoc');
+            if (!createRes) throw new Error();
+            initQuill();
+            quill.setText(text);
+            currentFile = createRes.file.filename;
+            currentData = createRes.file;
+            docNameInput.value = docLabel;
+            hasChanges = true;
+            await saveDocument();
+            hasChanges = false;
+            lastSaved = JSON.stringify(quill.getContents());
+            picker.style.display = 'none';
+            editorView.style.display = 'flex';
+            window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(currentFile));
+            showToast('Imported from disk', 'success');
+          } catch (e) {
+            showToast('Failed to import from disk', 'error');
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      async function loadFileList() {
+        try {
+          showPicker();
+          var res = await WorkspaceAPI.listFiles('odoc');
+          if (!res || !res.files || res.files.length === 0) {
+            fileGrid.innerHTML = '';
+            emptyState.style.display = '';
+            return;
+          }
+          emptyState.style.display = 'none';
+          fileGrid.innerHTML = '';
+          var newCard = document.createElement('div');
+          newCard.className = 'file-card file-card-new';
+          newCard.innerHTML = '<span class="plus">+</span><span>New Document</span>';
+          newCard.addEventListener('click', createDocument);
+          fileGrid.appendChild(newCard);
+          res.files.forEach(function (f) {
+            var card = document.createElement('div');
+            card.className = 'file-card';
+            card.dataset.file = f.filename;
+            var displayName = f.name.replace(/\.odoc$/, '');
+            var meta = [formatSize(f.size), formatDate(f.modified)].filter(Boolean).join(' \u00b7 ');
+            card.innerHTML =
+              '<div class="file-icon">&#128221;</div>' +
+              '<div class="file-name">' + escapeHTML(displayName) + '</div>' +
+              '<div class="file-meta">' + escapeHTML(meta) + '</div>';
+            card.addEventListener('click', function () {
+              openDocument(card.dataset.file);
+            });
+            fileGrid.appendChild(card);
+          });
+        } catch (e) {
+          showToast('Failed to load documents', 'error');
+        }
+      }
+
+      function showPicker() {
+        picker.style.display = 'flex';
+        editorView.style.display = 'none';
+        currentFile = null;
+        currentData = null;
+        hasChanges = false;
+        if (autoSaveTimer) {
+          clearTimeout(autoSaveTimer);
+          autoSaveTimer = null;
+        }
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
+      function formatSize(bytes) {
+        if (!bytes) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+      }
+
+      function formatDate(ts) {
+        if (!ts) return '';
+        var d;
+        if (typeof ts === 'number') {
+          d = ts > 1e11 ? new Date(ts) : new Date(ts * 1000);
+        } else {
+          d = new Date(ts);
+        }
+        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      async function openDocument(filename) {
+        try {
+          if (hasChanges && currentFile) {
+            if (!confirm('Unsaved changes will be lost. Continue?')) return;
+          }
+          var res = await WorkspaceAPI.readFile(filename);
+          if (!res) {
+            showToast('Failed to open document', 'error');
+            return;
+          }
+          currentFile = filename;
+          currentData = res.file;
+          docNameInput.value = res.file.name.replace(/\.odoc$/, '');
+          hasChanges = false;
+          saveStatus.textContent = '';
+          saveStatus.className = 'save-status';
+          initQuill();
+          var content = (res.data && res.data.content) ? res.data.content : { ops: [{ insert: '\n' }] };
+          quill.setContents(content);
+          lastSaved = JSON.stringify(quill.getContents());
+          picker.style.display = 'none';
+          editorView.style.display = 'flex';
+          window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(filename));
+        } catch (e) {
+          showToast('Failed to open document', 'error');
+        }
+      }
+
+      function initQuill() {
+        if (quill) return;
+        quill = new Quill('#editor', {
+          theme: 'snow',
+          modules: {
+            toolbar: '#toolbar'
+          },
+          placeholder: 'Start writing...'
+        });
+        quill.on('text-change', function () {
+          if (!currentFile) return;
+          hasChanges = true;
+          saveStatus.textContent = 'Unsaved changes';
+          saveStatus.className = 'save-status';
+          clearTimeout(autoSaveTimer);
+          autoSaveTimer = setTimeout(function () {
+            if (hasChanges && currentFile) saveDocument();
+          }, 5000);
+        });
+      }
+
+      async function saveDocument() {
+        if (!currentFile || !quill) return;
+        try {
+          saveStatus.textContent = 'Saving...';
+          saveStatus.className = 'save-status saving';
+          var content = quill.getContents();
+          var result = await WorkspaceAPI.saveFile(currentFile, { content: content });
+          if (result) {
+            hasChanges = false;
+            lastSaved = JSON.stringify(content);
+            saveStatus.textContent = 'Saved';
+            saveStatus.className = 'save-status saved';
+            showToast('Document saved', 'success');
+            setTimeout(function () {
+              if (saveStatus.textContent === 'Saved') {
+                saveStatus.textContent = '';
+                saveStatus.className = 'save-status';
+              }
+            }, 2000);
+          } else {
+            saveStatus.textContent = 'Save failed';
+            saveStatus.className = 'save-status';
+            showToast('Failed to save document', 'error');
+          }
+        } catch (e) {
+          saveStatus.textContent = 'Save failed';
+          saveStatus.className = 'save-status';
+          showToast('Failed to save document', 'error');
+        }
+      }
+
+      async function createDocument() {
+        try {
+          var name = prompt('Document name:');
+          if (!name || !name.trim()) return;
+          var docName = name.trim();
+          if (!docName.endsWith('.odoc')) docName += '.odoc';
+          var res = await WorkspaceAPI.createFile(docName, 'odoc');
+          if (res) {
+            showToast('Document created', 'success');
+            await openDocument(res.file.filename);
+          }
+        } catch (e) {
+          showToast('Failed to create document', 'error');
+        }
+      }
+
+      async function renameDocument() {
+        if (!currentFile || !currentData) return;
+        var newName = docNameInput.value.trim();
+        if (!newName) {
+          docNameInput.value = currentData.name.replace(/\.odoc$/, '');
+          return;
+        }
+        if (newName === currentData.name.replace(/\.odoc$/, '')) return;
+        try {
+          var res = await WorkspaceAPI.renameFile(currentFile, newName);
+          if (res) {
+            currentData = res.file;
+            currentFile = res.file.filename;
+            window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(res.file.filename));
+            showToast('Document renamed', 'success');
+          } else {
+            docNameInput.value = currentData.name.replace(/\.odoc$/, '');
+          }
+        } catch (e) {
+          docNameInput.value = currentData.name.replace(/\.odoc$/, '');
+        }
+      }
+
+      function handleBack() {
+        if (hasChanges) {
+          if (!confirm('You have unsaved changes. Discard them?')) return;
+        }
+        showPicker();
+        loadFileList();
+      }
+
+      document.getElementById('btnNew').addEventListener('click', createDocument);
+      document.getElementById('btnNewEmpty').addEventListener('click', createDocument);
+      btnSave.addEventListener('click', saveDocument);
+      document.getElementById('btnBack').addEventListener('click', handleBack);
+      docNameInput.addEventListener('blur', renameDocument);
+      docNameInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          docNameInput.blur();
+        }
+      });
+      document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          if (currentFile) saveDocument();
+        }
+      });
+
+      init();
+    })();
+  </script>
+</body>
+</html>

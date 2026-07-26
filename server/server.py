@@ -65,13 +65,19 @@ with open(CFIG) as f:
 
 init_auth_config(config)
 
-app = FastAPI()
+from contextlib import asynccontextmanager
 
-@app.on_event("startup")
-async def start_cleanup_task():
+@asynccontextmanager
+async def lifespan(app):
     asyncio.create_task(_cleanup_sessions())
     if config.get("cube", {}).get("use"):
         asyncio.create_task(_cleanup_expired_containers())
+    if config.get("extendors", {}).get("fileshare"):
+        from modules.extend.fileshare import task_expiry
+        asyncio.create_task(task_expiry())
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -146,7 +152,14 @@ if config["extendors"]["webshell"]:
     
     from modules.extend.webshell import webshell_router
     app.include_router(webshell_router)
-    
+
+if config.get("oworkspace", {}).get("use"):
+    print("[Section] oworkspace is on.")
+
+    from modules.oworkspace import Rworkspace, init_oworkspace
+    init_oworkspace()
+    app.include_router(Rworkspace)
+
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="static")
 
 if __name__ == "__main__":

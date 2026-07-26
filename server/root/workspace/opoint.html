@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OPoint</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="revealTheme">
+<style>
+:root {
+  --bg-main: #0f172a;
+  --bg-card: #1e293b;
+  --border-color: #334155;
+  --accent-cyan: #06b6d4;
+  --accent-cyan-hover: #0891b2;
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-emerald: #10b981;
+  --accent-rose: #f43f5e;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+}
+[data-theme="light"] {
+  --bg-main: #f1f5f9;
+  --bg-card: #ffffff;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+}
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  margin: 0;
+  background: var(--bg-main);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, sans-serif;
+  height: 100vh;
+  overflow: hidden;
+}
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+#pickerView {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+#pickerView.hidden {
+  display: none;
+}
+#pickerHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  position: relative;
+  flex-shrink: 0;
+}
+#pickerHeader::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue), var(--accent-purple));
+}
+#pickerHeader h1 {
+  flex: 1;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+#pickerThemeBtn {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+#pickerThemeBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] #pickerThemeBtn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+#pickerGrid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
+  align-content: start;
+}
+.picker-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.picker-card:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 8px 30px rgba(6, 182, 212, 0.12);
+  transform: translateY(-2px);
+}
+.picker-card-preview {
+  aspect-ratio: 16/9;
+  background: #fff;
+  overflow: hidden;
+  position: relative;
+}
+[data-theme="dark"] .picker-card-preview {
+  background: #1e293b;
+}
+.picker-card-preview-inner {
+  transform: scale(0.22);
+  transform-origin: top left;
+  width: 455%;
+  height: 455%;
+  pointer-events: none;
+  padding: 20px 28px;
+  color: #000;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow: hidden;
+}
+[data-theme="dark"] .picker-card-preview-inner {
+  color: #e2e8f0;
+}
+.picker-card-preview-inner h1 { font-size: 28px; margin: 0 0 8px; }
+.picker-card-preview-inner h2 { font-size: 22px; margin: 0 0 6px; }
+.picker-card-preview-inner h3 { font-size: 18px; margin: 0 0 4px; }
+.picker-card-preview-inner p { margin: 0 0 4px; }
+.picker-card-preview-inner ul, .picker-card-preview-inner ol {
+  margin: 0;
+  padding-left: 20px;
+}
+.picker-card-info {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.picker-card-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.picker-card-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.picker-card-delete {
+  background: none;
+  border: none;
+  color: var(--accent-rose);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+.picker-card:hover .picker-card-delete {
+  opacity: 1;
+}
+.picker-card-new {
+  background: transparent;
+  border: 2px dashed var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 180px;
+  transition: all 0.2s;
+}
+.picker-card-new:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.04);
+}
+.picker-card-new-icon {
+  font-size: 2.2rem;
+  color: var(--accent-cyan);
+  line-height: 1;
+  font-weight: 300;
+}
+.picker-card-new-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.picker-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+#newNameOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+}
+#newNameOverlay.show {
+  display: flex;
+}
+#newNameBox {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 24px;
+  width: min(420px, 90vw);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+#newNameBox h3 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+#newNameBox input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  margin-bottom: 14px;
+  transition: border-color 0.15s;
+}
+#newNameBox input:focus {
+  border-color: var(--accent-cyan);
+}
+[data-theme="light"] #newNameBox input {
+  background: rgba(0, 0, 0, 0.04);
+}
+.new-name-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+#editorView {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+#editorView.hidden {
+  display: none;
+}
+#header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  position: relative;
+  flex-shrink: 0;
+}
+#header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue), var(--accent-purple));
+}
+#backBtn {
+  background: none;
+  border: none;
+  color: var(--accent-cyan);
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+}
+#backBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] #backBtn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+#titleInput {
+  flex: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-primary);
+  font-size: 1.15rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+#titleInput:hover {
+  border-color: var(--border-color);
+}
+#titleInput:focus {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] #titleInput:focus {
+  background: rgba(255, 255, 255, 0.6);
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+#saveStatus {
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+#saveStatus.saved {
+  color: var(--accent-emerald);
+}
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.btn-primary {
+  background: var(--accent-cyan);
+  color: #0f172a;
+  border-color: var(--accent-cyan);
+  font-weight: 600;
+}
+.btn-primary:hover {
+  filter: brightness(1.15);
+  color: #0f172a;
+}
+#editorBody {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+#sidebar {
+  width: 200px;
+  min-width: 200px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#slideList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.slide-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  margin-bottom: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid var(--border-color);
+  cursor: pointer;
+  position: relative;
+  background: #fff;
+  flex-shrink: 0;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+[data-theme="dark"] .slide-thumb {
+  background: #1e293b;
+}
+.slide-thumb:hover {
+  border-color: var(--accent-cyan);
+}
+.slide-thumb.active {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25);
+}
+.slide-thumb-inner {
+  width: 100%;
+  height: 100%;
+  background: white;
+  overflow: hidden;
+  position: relative;
+}
+.slide-thumb-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 667%;
+  height: 667%;
+  transform: scale(0.15);
+  transform-origin: top left;
+  pointer-events: none;
+  overflow: hidden;
+  padding: 16px;
+  color: #1e293b;
+  font-size: 14px;
+  line-height: 1.4;
+}
+[data-theme="dark"] .slide-thumb-content {
+  color: #e2e8f0;
+}
+.slide-thumb-content h1 { font-size: 28px; margin: 0 0 8px; }
+.slide-thumb-content h2 { font-size: 22px; margin: 0 0 6px; }
+.slide-thumb-content h3 { font-size: 18px; margin: 0 0 4px; }
+.slide-thumb-content p { margin: 0 0 4px; }
+.slide-thumb-content ul, .slide-thumb-content ol { margin: 0; padding-left: 20px; }
+.slide-num {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 0.6rem;
+  color: #999;
+  font-weight: 700;
+  z-index: 2;
+}
+[data-theme="dark"] .slide-num {
+  color: #64748b;
+}
+.thumb-ctx-menu {
+  display: none;
+  position: fixed;
+  z-index: 500;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 4px 0;
+  min-width: 140px;
+}
+.thumb-ctx-menu.show {
+  display: block;
+}
+.thumb-ctx-item {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.thumb-ctx-item:hover {
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--accent-cyan);
+}
+.thumb-ctx-item.danger {
+  color: var(--accent-rose);
+}
+.thumb-ctx-item.danger:hover {
+  background: rgba(244, 63, 94, 0.1);
+}
+#importOMediaOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+}
+#importOMediaOverlay.show {
+  display: flex;
+}
+#importOMediaBox {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 24px;
+  width: min(520px, 90vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+#importOMediaBox h3 {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+#importOMediaFileList {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  min-height: 60px;
+}
+.import-file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+.import-file-item:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.06);
+}
+.import-file-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.import-file-name {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.import-file-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.import-empty {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+.picker-import-btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+  transition: all 0.15s;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.picker-import-btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+#mainArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-main);
+}
+#formatBar {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-card);
+  flex-wrap: wrap;
+  align-items: center;
+  flex-shrink: 0;
+}
+.fmt-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.12s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 0;
+}
+.fmt-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+[data-theme="light"] .fmt-btn {
+  background: rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .fmt-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  border-color: var(--accent-cyan);
+}
+.fmt-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border-color);
+  margin: 0 4px;
+}
+.fmt-color {
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  -webkit-appearance: none;
+  background: none;
+}
+.fmt-color::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.fmt-color::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+.slide-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+}
+.slide-canvas {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 16/9;
+  background: #fff;
+  color: #1e293b;
+  border-radius: 8px;
+  padding: 48px;
+  outline: none;
+  overflow: auto;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  font-size: 18px;
+  line-height: 1.5;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+[data-theme="dark"] .slide-canvas {
+  background: #1e293b;
+  color: #e2e8f0;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+.slide-canvas:empty::before {
+  content: 'Click to start editing...';
+  color: #94a3b8;
+  pointer-events: none;
+}
+.slide-canvas h1 { font-size: 2.2em; margin: 0 0 12px; color: #0f172a; }
+.slide-canvas h2 { font-size: 1.6em; margin: 0 0 10px; color: #1e293b; }
+.slide-canvas h3 { font-size: 1.25em; margin: 0 0 8px; color: #334155; }
+[data-theme="dark"] .slide-canvas h1 { color: #f1f5f9; }
+[data-theme="dark"] .slide-canvas h2 { color: #e2e8f0; }
+[data-theme="dark"] .slide-canvas h3 { color: #cbd5e1; }
+.slide-canvas p { margin: 0 0 8px; }
+.slide-canvas ul, .slide-canvas ol { margin: 0 0 8px; padding-left: 24px; }
+#bottomBar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-card);
+  align-items: center;
+  flex-shrink: 0;
+}
+#slideCount {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-left: auto;
+  margin-right: 4px;
+}
+#presentationView {
+  display: none;
+}
+#presentationView.active {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+}
+.reveal {
+  width: 100%;
+  height: 100%;
+}
+.reveal .slides {
+  text-align: left;
+}
+.reveal .slides section {
+  padding: 40px 60px;
+}
+.reveal h1 { font-size: 2.4em; font-weight: 700; }
+.reveal h2 { font-size: 1.8em; font-weight: 600; }
+.reveal h3 { font-size: 1.3em; font-weight: 600; }
+.reveal p { font-size: 1em; }
+.reveal ul, .reveal ol { font-size: 0.95em; }
+.reveal .slide-number {
+  font-size: 0.7em;
+  color: rgba(255, 255, 255, 0.4);
+}
+@media (max-width: 800px) {
+  #pickerGrid {
+    padding: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  #sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 80px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+  #slideList {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    gap: 6px;
+    height: 80px;
+  }
+  .slide-thumb {
+    min-width: 100px;
+    width: 100px;
+    aspect-ratio: auto;
+    height: 100%;
+  }
+  #editorBody {
+    flex-direction: column;
+  }
+  .slide-canvas {
+    width: 100%;
+    min-height: 250px;
+    padding: 28px 24px;
+    font-size: 15px;
+  }
+  .slide-wrapper {
+    padding: 16px;
+  }
+  .header-actions {
+    gap: 4px;
+  }
+  .header-actions .btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
+</style>
+</head>
+<body>
+
+<div id="pickerView">
+  <div id="pickerHeader">
+    <h1>OPoint Presentations</h1>
+    <button class="picker-import-btn" id="importOMediaBtn" title="Import text file from OMedia">&#128196; Import from OMedia</button>
+    <button class="picker-import-btn" id="importDiskBtn" title="Open text file from disk">&#128193; Open from Disk</button>
+    <button id="pickerThemeBtn" title="Toggle theme"></button>
+  </div>
+  <div id="pickerGrid"></div>
+</div>
+
+<div id="editorView" class="hidden">
+  <div id="header">
+    <a href="/workspace/" id="backBtn" title="Back to Workspace">&larr;</a>
+    <input id="titleInput" type="text" value="Untitled Presentation" spellcheck="false" />
+    <div class="header-actions">
+      <span id="saveStatus"></span>
+      <button class="btn" id="openBtn" title="Open file">Open</button>
+      <button class="btn btn-primary" id="saveBtn" title="Save">Save</button>
+      <button class="btn btn-primary" id="presentBtn" title="Present">Present</button>
+      <button class="btn" id="themeToggle" title="Toggle theme"></button>
+    </div>
+  </div>
+  <div id="editorBody">
+    <div id="sidebar">
+      <div id="slideList"></div>
+    </div>
+    <div id="mainArea">
+      <div id="formatBar">
+        <button class="fmt-btn" data-cmd="formatBlock" data-val="H1" title="Heading 1">H1</button>
+        <button class="fmt-btn" data-cmd="formatBlock" data-val="H2" title="Heading 2">H2</button>
+        <button class="fmt-btn" data-cmd="formatBlock" data-val="H3" title="Heading 3">H3</button>
+        <button class="fmt-btn" data-cmd="formatBlock" data-val="P" title="Paragraph">P</button>
+        <div class="fmt-sep"></div>
+        <button class="fmt-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+        <button class="fmt-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+        <div class="fmt-sep"></div>
+        <button class="fmt-btn" data-cmd="insertUnorderedList" title="Bullet List">&#8226; List</button>
+        <div class="fmt-sep"></div>
+        <input type="color" class="fmt-color" id="textColor" value="#000000" title="Text color" />
+      </div>
+      <div class="slide-wrapper">
+        <div id="slideCanvas" class="slide-canvas" contenteditable="true"></div>
+      </div>
+      <div id="bottomBar">
+        <button class="btn" id="addSlideBtn" title="Add slide">+ Slide</button>
+        <button class="btn" id="delSlideBtn" title="Delete slide">Delete</button>
+        <button class="btn" id="moveUpBtn" title="Move up">&uarr;</button>
+        <button class="btn" id="moveDownBtn" title="Move down">&darr;</button>
+        <span id="slideCount"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="presentationView"></div>
+
+<div id="newNameOverlay">
+  <div id="newNameBox">
+    <h3>New Presentation</h3>
+    <input type="text" id="newNameInput" placeholder="Presentation name..." />
+    <div class="new-name-actions">
+      <button class="btn" id="newNameCancel">Cancel</button>
+      <button class="btn btn-primary" id="newNameCreate">Create</button>
+    </div>
+  </div>
+</div>
+
+<div class="thumb-ctx-menu" id="thumbCtxMenu">
+  <button class="thumb-ctx-item" id="ctxDuplicate">Duplicate Slide</button>
+  <button class="thumb-ctx-item danger" id="ctxDelete">Delete Slide</button>
+</div>
+
+<div id="importOMediaOverlay">
+  <div id="importOMediaBox">
+    <h3>Import from OMedia</h3>
+    <div id="importOMediaFileList"></div>
+    <div class="new-name-actions">
+      <button class="btn" id="importOMediaCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="importDiskInput" style="display:none" accept=".txt,.md,.html">
+
+<script src="/static/theme.js"></script>
+<script src="/static/utils.js"></script>
+<script src="/static/toasts.js"></script>
+<script src="/static/workspace.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script>
+(async function () {
+  try {
+    var me = await fetch('/api/me');
+    if (!me.ok) { window.location.href = '/login.html'; return; }
+  } catch (e) { window.location.href = '/login.html'; return; }
+
+  var KIND = 'opoint';
+  var presoData = { title: 'Untitled Presentation', slides: [{ content: '<h1>Title Slide</h1><p>Click to edit</p>', notes: '' }] };
+  var currentSlideIndex = 0;
+  var currentFile = null;
+  var currentFileInfo = null;
+  var hasChanges = false;
+  var autoSaveTimer = null;
+  var revealInstance = null;
+
+  var pickerView = document.getElementById('pickerView');
+  var editorView = document.getElementById('editorView');
+  var presentationView = document.getElementById('presentationView');
+  var slideList = document.getElementById('slideList');
+  var slideCanvas = document.getElementById('slideCanvas');
+  var slideCountEl = document.getElementById('slideCount');
+  var titleInput = document.getElementById('titleInput');
+  var newNameOverlay = document.getElementById('newNameOverlay');
+  var thumbCtxMenu = document.getElementById('thumbCtxMenu');
+  var ctxSlideIndex = -1;
+
+  var meRes = await fetch('/api/me');
+  if (meRes.ok) {
+    var meData = await meRes.json();
+    window._ocloudUser = meData.username || meData.user || null;
+  }
+
+  function escapeHTML(str) {
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+  }
+
+  function textToSlides(text) {
+    var parts = text.split(/\n---\n|\n\n+/);
+    return parts.filter(function(p) { return p.trim(); }).map(function(p) {
+      var lines = p.trim().split('\n');
+      var title = lines[0].replace(/^#+\s*/, '');
+      var body = lines.slice(1).join('\n');
+      return {
+        content: '<h2>' + escapeHTML(title) + '</h2><p>' + escapeHTML(body).replace(/\n/g, '<br>') + '</p>',
+        notes: ''
+      };
+    });
+  }
+
+  function importFromText(text, filename) {
+    var slides = textToSlides(text);
+    if (!slides.length) {
+      showToast('No content found in file', 'error');
+      return;
+    }
+    var name = filename.replace(/\.(txt|md|html)$/i, '') + '.opoint';
+    var data = { title: filename.replace(/\.(txt|md|html)$/i, ''), slides: slides };
+    WorkspaceAPI.createFile(name, KIND).then(function(result) {
+      if (result) {
+        return WorkspaceAPI.saveFile(result.file.filename, data).then(function() {
+          loadFile(result.file.filename);
+          showToast('Imported ' + filename, 'success');
+        });
+      }
+    }).catch(function() {
+      showToast('Failed to import file', 'error');
+    });
+  }
+
+  function updateThemeButtons() {
+    var t = document.documentElement.getAttribute('data-theme');
+    var icon = t === 'dark' ? '\u{1F319}' : '\u2600\uFE0F';
+    document.getElementById('pickerThemeBtn').textContent = icon;
+    document.getElementById('themeToggle').textContent = icon;
+  }
+
+  function syncTheme() {
+    updateThemeButtons();
+    renderThumbnails();
+  }
+
+  document.getElementById('pickerThemeBtn').addEventListener('click', function () { toggleTheme(); syncTheme(); });
+  document.getElementById('themeToggle').addEventListener('click', function () { toggleTheme(); syncTheme(); });
+
+  function formatSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function formatDate(ts) {
+    if (!ts) return '';
+    var d;
+    if (typeof ts === 'number') {
+      d = ts > 1e11 ? new Date(ts) : new Date(ts * 1000);
+    } else {
+      d = new Date(ts);
+    }
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function showPicker() {
+    pickerView.classList.remove('hidden');
+    editorView.classList.add('hidden');
+    presentationView.classList.remove('active');
+    presentationView.innerHTML = '';
+    currentFile = null;
+    currentFileInfo = null;
+    hasChanges = false;
+    if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+    window.history.replaceState({}, '', window.location.pathname);
+    loadPicker();
+  }
+
+  function showEditor() {
+    pickerView.classList.add('hidden');
+    editorView.classList.remove('hidden');
+  }
+
+  async function loadPicker() {
+    try {
+      var res = await WorkspaceAPI.listFiles(KIND);
+      var grid = document.getElementById('pickerGrid');
+      grid.innerHTML = '';
+
+      var newCard = document.createElement('div');
+      newCard.className = 'picker-card picker-card-new';
+      newCard.innerHTML = '<div class="picker-card-new-icon">+</div><div class="picker-card-new-label">New Presentation</div>';
+      newCard.addEventListener('click', function () {
+        newNameOverlay.classList.add('show');
+        var inp = document.getElementById('newNameInput');
+        inp.value = '';
+        inp.focus();
+      });
+      grid.appendChild(newCard);
+
+      var files = (res && res.files) || [];
+      if (files.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'picker-empty';
+        empty.textContent = 'No presentations yet. Click "New Presentation" to get started.';
+        grid.appendChild(empty);
+        return;
+      }
+      files.forEach(function (f) {
+        var card = document.createElement('div');
+        card.className = 'picker-card';
+
+        var preview = document.createElement('div');
+        preview.className = 'picker-card-preview';
+        var inner = document.createElement('div');
+        inner.className = 'picker-card-preview-inner';
+        inner.innerHTML = '<p style="color:#94a3b8;font-style:italic;">Empty slide</p>';
+        preview.appendChild(inner);
+
+        var slideCount = 0;
+        var displayName = f.name.replace(/\.opoint$/, '');
+        var meta = [formatSize(f.size), formatDate(f.modified)].filter(Boolean).join(' \u00b7 ');
+
+        var info = document.createElement('div');
+        info.className = 'picker-card-info';
+        var nameEl = document.createElement('div');
+        nameEl.style.cssText = 'flex:1;overflow:hidden;';
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'picker-card-name';
+        nameSpan.textContent = displayName;
+        nameSpan.title = displayName;
+        var metaSpan = document.createElement('span');
+        metaSpan.className = 'picker-card-meta';
+        metaSpan.textContent = meta;
+        nameEl.appendChild(nameSpan);
+        nameEl.appendChild(metaSpan);
+        var delBtn = document.createElement('button');
+        delBtn.className = 'picker-card-delete';
+        delBtn.textContent = '\uD83D\uDDD1';
+        delBtn.title = 'Delete';
+        delBtn.addEventListener('click', async function (e) {
+          e.stopPropagation();
+          if (!confirm('Delete "' + displayName + '"?')) return;
+          await WorkspaceAPI.deleteFile(f.filename);
+          loadPicker();
+        });
+        info.appendChild(nameEl);
+        info.appendChild(delBtn);
+
+        card.appendChild(preview);
+        card.appendChild(info);
+
+        card.addEventListener('click', function () { loadFile(f.filename); });
+        grid.appendChild(card);
+
+        loadPreviewThumb(inner, f.filename, function (count) {
+          slideCount = count;
+          metaSpan.textContent = (count > 0 ? count + ' slides \u00b7 ' : '') + meta;
+        }).catch(function () {});
+      });
+    } catch (err) {}
+  }
+
+  async function loadPreviewThumb(el, filename, onCount) {
+    try {
+      var res = await WorkspaceAPI.readFile(filename);
+      if (res && res.data && res.data.slides && res.data.slides.length > 0) {
+        el.innerHTML = res.data.slides[0].content || '<p style="color:#94a3b8;font-style:italic;">Empty slide</p>';
+        if (onCount) onCount(res.data.slides.length);
+      }
+    } catch (err) {}
+  }
+
+  function closeNewName() { newNameOverlay.classList.remove('show'); }
+  document.getElementById('newNameCancel').addEventListener('click', closeNewName);
+  newNameOverlay.addEventListener('click', function (e) { if (e.target === newNameOverlay) closeNewName(); });
+  document.getElementById('newNameCreate').addEventListener('click', async function () {
+    try {
+      var name = document.getElementById('newNameInput').value.trim();
+      if (!name) return;
+      if (!name.endsWith('.opoint')) name += '.opoint';
+      var result = await WorkspaceAPI.createFile(name, KIND);
+      if (result) {
+        closeNewName();
+        await loadFile(result.file.filename);
+      }
+    } catch (err) {}
+  });
+  document.getElementById('newNameInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('newNameCreate').click(); }
+    if (e.key === 'Escape') closeNewName();
+  });
+
+  async function loadFile(filename) {
+    try {
+      var result = await WorkspaceAPI.readFile(filename);
+      if (!result) return;
+      currentFile = filename;
+      currentFileInfo = result.file;
+      presoData = result.data || { title: filename.replace(/\.opoint$/, ''), slides: [{ content: '<h1>Title Slide</h1><p>Click to edit</p>', notes: '' }] };
+      if (!presoData.slides || presoData.slides.length === 0) presoData.slides = [{ content: '<h1>Title Slide</h1><p>Click to edit</p>', notes: '' }];
+      if (!presoData.title) presoData.title = filename.replace(/\.opoint$/, '');
+      titleInput.value = presoData.title;
+      currentSlideIndex = 0;
+      slideCanvas.innerHTML = presoData.slides[0].content;
+      hasChanges = false;
+      document.getElementById('saveStatus').textContent = '';
+      renderThumbnails();
+      updateSlideCounter();
+      document.title = (presoData.title || 'Untitled') + ' \u2014 OPoint';
+      showEditor();
+      window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(filename));
+    } catch (err) {
+      showToast('Failed to open presentation', 'error');
+    }
+  }
+
+  function renderThumbnails() {
+    slideList.innerHTML = '';
+    presoData.slides.forEach(function (s, i) {
+      var thumb = document.createElement('div');
+      thumb.className = 'slide-thumb' + (i === currentSlideIndex ? ' active' : '');
+      thumb.setAttribute('data-index', i);
+
+      var inner = document.createElement('div');
+      inner.className = 'slide-thumb-inner';
+      var content = document.createElement('div');
+      content.className = 'slide-thumb-content';
+      content.innerHTML = s.content || '';
+      inner.appendChild(content);
+      thumb.appendChild(inner);
+
+      var num = document.createElement('span');
+      num.className = 'slide-num';
+      num.textContent = i + 1;
+      thumb.appendChild(num);
+
+      thumb.addEventListener('click', function () { selectSlide(i); });
+      thumb.addEventListener('contextmenu', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        ctxSlideIndex = i;
+        showCtxMenu(e.clientX, e.clientY);
+      });
+
+      slideList.appendChild(thumb);
+    });
+  }
+
+  function showCtxMenu(x, y) {
+    thumbCtxMenu.style.left = x + 'px';
+    thumbCtxMenu.style.top = y + 'px';
+    thumbCtxMenu.classList.add('show');
+  }
+
+  function hideCtxMenu() {
+    thumbCtxMenu.classList.remove('show');
+    ctxSlideIndex = -1;
+  }
+
+  document.addEventListener('click', hideCtxMenu);
+
+  document.getElementById('ctxDuplicate').addEventListener('click', function () {
+    if (ctxSlideIndex < 0 || ctxSlideIndex >= presoData.slides.length) return;
+    var src = presoData.slides[ctxSlideIndex];
+    var dup = { content: src.content, notes: src.notes || '' };
+    presoData.slides.splice(ctxSlideIndex + 1, 0, dup);
+    currentSlideIndex = ctxSlideIndex + 1;
+    renderThumbnails();
+    selectSlide(currentSlideIndex);
+    markDirty();
+    hideCtxMenu();
+  });
+
+  document.getElementById('ctxDelete').addEventListener('click', function () {
+    if (ctxSlideIndex < 0) return;
+    if (presoData.slides.length <= 1) {
+      showToast('Cannot delete last slide', 'error');
+      hideCtxMenu();
+      return;
+    }
+    presoData.slides.splice(ctxSlideIndex, 1);
+    if (currentSlideIndex >= presoData.slides.length) currentSlideIndex = presoData.slides.length - 1;
+    renderThumbnails();
+    selectSlide(currentSlideIndex);
+    markDirty();
+    hideCtxMenu();
+  });
+
+  function selectSlide(index) {
+    saveCurrentSlide();
+    currentSlideIndex = Math.max(0, Math.min(index, presoData.slides.length - 1));
+    slideCanvas.innerHTML = presoData.slides[currentSlideIndex].content;
+    renderThumbnails();
+    updateSlideCounter();
+    slideCanvas.focus();
+  }
+
+  function saveCurrentSlide() {
+    if (currentSlideIndex >= 0 && currentSlideIndex < presoData.slides.length) {
+      presoData.slides[currentSlideIndex].content = slideCanvas.innerHTML;
+    }
+  }
+
+  function updateSlideCounter() {
+    slideCountEl.textContent = 'Slide ' + (currentSlideIndex + 1) + ' of ' + presoData.slides.length;
+  }
+
+  function addSlide() {
+    saveCurrentSlide();
+    var newSlide = { content: '<h2>New Slide</h2><p>Click to edit</p>', notes: '' };
+    presoData.slides.splice(currentSlideIndex + 1, 0, newSlide);
+    currentSlideIndex++;
+    renderThumbnails();
+    selectSlide(currentSlideIndex);
+    markDirty();
+  }
+
+  function deleteSlide() {
+    if (presoData.slides.length <= 1) {
+      showToast('Cannot delete last slide', 'error');
+      return;
+    }
+    presoData.slides.splice(currentSlideIndex, 1);
+    if (currentSlideIndex >= presoData.slides.length) currentSlideIndex = presoData.slides.length - 1;
+    renderThumbnails();
+    selectSlide(currentSlideIndex);
+    markDirty();
+  }
+
+  function moveSlide(dir) {
+    var newIndex = currentSlideIndex + dir;
+    if (newIndex < 0 || newIndex >= presoData.slides.length) return;
+    var tmp = presoData.slides[currentSlideIndex];
+    presoData.slides[currentSlideIndex] = presoData.slides[newIndex];
+    presoData.slides[newIndex] = tmp;
+    currentSlideIndex = newIndex;
+    renderThumbnails();
+    selectSlide(currentSlideIndex);
+    markDirty();
+  }
+
+  document.getElementById('addSlideBtn').addEventListener('click', addSlide);
+  document.getElementById('delSlideBtn').addEventListener('click', deleteSlide);
+  document.getElementById('moveUpBtn').addEventListener('click', function () { moveSlide(-1); });
+  document.getElementById('moveDownBtn').addEventListener('click', function () { moveSlide(1); });
+
+  var fmtBtns = document.querySelectorAll('.fmt-btn[data-cmd]');
+  for (var i = 0; i < fmtBtns.length; i++) {
+    fmtBtns[i].addEventListener('click', function () {
+      var cmd = this.getAttribute('data-cmd');
+      var val = this.getAttribute('data-val') || null;
+      if (cmd === 'formatBlock') {
+        document.execCommand('formatBlock', false, '<' + val + '>');
+      } else {
+        document.execCommand(cmd, false, null);
+      }
+      slideCanvas.focus();
+      onContentChange();
+    });
+  }
+
+  document.getElementById('textColor').addEventListener('input', function (e) {
+    document.execCommand('foreColor', false, e.target.value);
+    slideCanvas.focus();
+  });
+
+  slideCanvas.addEventListener('input', function () {
+    presoData.slides[currentSlideIndex].content = slideCanvas.innerHTML;
+    onContentChange();
+  });
+
+  slideCanvas.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      document.execCommand('insertText', false, '    ');
+    }
+  });
+
+  function onContentChange() {
+    hasChanges = true;
+    document.getElementById('saveStatus').textContent = 'Unsaved';
+    document.getElementById('saveStatus').className = '';
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(saveDocument, 5000);
+  }
+
+  function markDirty() {
+    hasChanges = true;
+    document.getElementById('saveStatus').textContent = 'Unsaved';
+    document.getElementById('saveStatus').className = '';
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(saveDocument, 5000);
+  }
+
+  async function saveDocument() {
+    if (!currentFile) return;
+    saveCurrentSlide();
+    presoData.title = titleInput.value || 'Untitled';
+    try {
+      var result = await WorkspaceAPI.saveFile(currentFile, presoData);
+      if (result) {
+        hasChanges = false;
+        document.getElementById('saveStatus').textContent = 'Saved';
+        document.getElementById('saveStatus').className = 'saved';
+        setTimeout(function () {
+          if (document.getElementById('saveStatus').textContent === 'Saved') {
+            document.getElementById('saveStatus').textContent = '';
+            document.getElementById('saveStatus').className = '';
+          }
+        }, 2000);
+      }
+    } catch (err) {
+      showToast('Failed to save', 'error');
+    }
+  }
+
+  document.getElementById('saveBtn').addEventListener('click', saveDocument);
+
+  titleInput.addEventListener('input', function () { markDirty(); });
+
+  titleInput.addEventListener('blur', async function () {
+    if (!currentFile || !currentFileInfo) return;
+    var newName = titleInput.value.trim();
+    if (!newName) { titleInput.value = presoData.title; return; }
+    if (newName === presoData.title) return;
+    try {
+      var res = await WorkspaceAPI.renameFile(currentFile, newName);
+      if (res) {
+        currentFileInfo = res.file;
+        currentFile = res.file.filename;
+        presoData.title = newName;
+        window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(res.file.filename));
+      } else {
+        titleInput.value = presoData.title;
+      }
+    } catch (e) {
+      titleInput.value = presoData.title;
+    }
+  });
+
+  titleInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); titleInput.blur(); }
+  });
+
+  document.getElementById('openBtn').addEventListener('click', function () {
+    if (hasChanges && currentFile) {
+      saveCurrentSlide();
+      presoData.title = titleInput.value;
+      WorkspaceAPI.saveFile(currentFile, presoData).catch(function () {});
+    }
+    showPicker();
+  });
+
+  document.getElementById('backBtn').addEventListener('click', function (e) {
+    e.preventDefault();
+    if (hasChanges && currentFile) {
+      if (!confirm('You have unsaved changes. Discard them?')) return;
+    }
+    showPicker();
+  });
+
+  function startPresentation() {
+    saveCurrentSlide();
+    presoData.title = titleInput.value;
+    if (!presoData.slides.length) return;
+
+    presentationView.innerHTML = '<div class="reveal"><div class="slides"></div></div>';
+    editorView.classList.add('hidden');
+    pickerView.classList.add('hidden');
+    presentationView.classList.add('active');
+
+    var slidesContainer = presentationView.querySelector('.slides');
+    presoData.slides.forEach(function (s) {
+      var sec = document.createElement('section');
+      sec.innerHTML = s.content;
+      slidesContainer.appendChild(sec);
+    });
+
+    revealInstance = new Reveal(presentationView.querySelector('.reveal'), {
+      hash: false,
+      slideNumber: true,
+      controls: true,
+      transition: 'slide',
+      embedded: false
+    });
+    revealInstance.initialize().then(function () {
+      revealInstance.slide(0);
+    }).catch(function () {});
+
+    document.addEventListener('keydown', exitOnEscape);
+  }
+
+  function exitPresentation() {
+    if (presentationView.classList.indexOf('active') === -1 && !revealInstance) return;
+    if (revealInstance) {
+      try { revealInstance.destroy(); } catch (err) {}
+      revealInstance = null;
+    }
+    presentationView.classList.remove('active');
+    presentationView.innerHTML = '';
+    editorView.classList.remove('hidden');
+    document.removeEventListener('keydown', exitOnEscape);
+  }
+
+  function exitOnEscape(e) {
+    if (e.key === 'Escape') exitPresentation();
+  }
+
+  document.getElementById('presentBtn').addEventListener('click', startPresentation);
+
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      if (currentFile) saveDocument();
+    }
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (!currentFile || !hasChanges) return;
+    saveCurrentSlide();
+    presoData.title = titleInput.value;
+    navigator.sendBeacon(
+      '/api/oworkspace/files/' + encodeURIComponent(currentFile),
+      new Blob([JSON.stringify({ data: presoData })], { type: 'application/json' })
+    );
+    e.returnValue = '';
+  });
+
+  updateThemeButtons();
+
+  var importOMediaOverlay = document.getElementById('importOMediaOverlay');
+  var importOMediaFileList = document.getElementById('importOMediaFileList');
+
+  document.getElementById('importOMediaCancel').addEventListener('click', function() {
+    importOMediaOverlay.classList.remove('show');
+  });
+  importOMediaOverlay.addEventListener('click', function(e) {
+    if (e.target === importOMediaOverlay) importOMediaOverlay.classList.remove('show');
+  });
+
+  document.getElementById('importOMediaBtn').addEventListener('click', async function() {
+    if (!window._ocloudUser) {
+      showToast('Could not determine user', 'error');
+      return;
+    }
+    importOMediaFileList.innerHTML = '<div class="import-empty">Loading files...</div>';
+    importOMediaOverlay.classList.add('show');
+    try {
+      var res = await fetch('/api/omedia/lsfile/' + encodeURIComponent(window._ocloudUser));
+      var data = await res.json();
+      var files = (data.files || []).filter(function(f) {
+        return /\.(txt|md|html)$/i.test(f.name);
+      });
+      importOMediaFileList.innerHTML = '';
+      if (!files.length) {
+        importOMediaFileList.innerHTML = '<div class="import-empty">No .txt, .md, or .html files found in OMedia.</div>';
+        return;
+      }
+      files.forEach(function(f) {
+        var btn = document.createElement('button');
+        btn.className = 'import-file-item';
+        var icon = f.name.endsWith('.html') ? '&#127760;' : f.name.endsWith('.md') ? '&#9997;' : '&#128196;';
+        btn.innerHTML = '<span class="import-file-icon">' + icon + '</span><span class="import-file-name">' + escapeHTML(f.name) + '</span>';
+        btn.addEventListener('click', async function() {
+          importOMediaOverlay.classList.remove('show');
+          try {
+            var fRes = await fetch('/api/omedia/file/' + encodeURIComponent(window._ocloudUser) + '/' + encodeURIComponent(f.name));
+            var fData = await fRes.json();
+            importFromText(fData.content || fData.data || '', f.name);
+          } catch (e) {
+            showToast('Failed to fetch file', 'error');
+          }
+        });
+        importOMediaFileList.appendChild(btn);
+      });
+    } catch (e) {
+      importOMediaFileList.innerHTML = '<div class="import-empty">Failed to load files.</div>';
+    }
+  });
+
+  var importDiskInput = document.getElementById('importDiskInput');
+  document.getElementById('importDiskBtn').addEventListener('click', function() {
+    importDiskInput.value = '';
+    importDiskInput.click();
+  });
+  importDiskInput.addEventListener('change', function() {
+    var file = importDiskInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      importFromText(e.target.result, file.name);
+    };
+    reader.readAsText(file);
+  });
+
+  var params = new URLSearchParams(window.location.search);
+  var fileParam = params.get('file');
+  if (fileParam) {
+    await loadFile(fileParam);
+  } else {
+    showPicker();
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OWorkspace</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            padding: 0 20px;
+        }
+
+        .app-card {
+            background: var(--bg-card);
+            -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px 24px;
+            cursor: pointer;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 12px;
+        }
+
+        .app-card:hover {
+            transform: scale(1.03) translateY(-4px);
+            box-shadow: 0 20px 50px rgba(6, 182, 212, 0.12), 0 0 1px rgba(6, 182, 212, 0.3);
+            border-color: rgba(6, 182, 212, 0.3);
+        }
+
+        .app-card .card-icon {
+            font-size: 2.8rem;
+            line-height: 1;
+        }
+
+        .app-card .card-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .app-card .card-desc {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        [data-theme="light"] .app-card:hover {
+            box-shadow: 0 20px 50px rgba(6, 182, 212, 0.08), 0 0 1px rgba(6, 182, 212, 0.2);
+        }
+
+        @media (max-width: 900px) {
+            .workspace-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 20px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .workspace-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .app-card {
+                padding: 24px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <div class="hero">
+            <div>
+                <p class="eyebrow">Dashboard</p>
+                <h1>OWorkspace</h1>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <a href="/omedia/userdashboard.html" class="btn btn-secondary">Dashboard</a>
+                <button id="themeToggle" class="btn btn-secondary" aria-label="Toggle theme">🌙</button>
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+            </div>
+        </div>
+
+        <div class="workspace-grid">
+            <a href="/workspace/odocs.html" class="app-card">
+                <div class="card-icon">📝</div>
+                <div class="card-name">ODocs</div>
+                <div class="card-desc">Rich text documents</div>
+            </a>
+            <a href="/workspace/ovideo.html" class="app-card">
+                <div class="card-icon">🎬</div>
+                <div class="card-name">OVideo</div>
+                <div class="card-desc">Video player & editor</div>
+            </a>
+            <a href="/workspace/oexcel.html" class="app-card">
+                <div class="card-icon">📊</div>
+                <div class="card-name">OExcel</div>
+                <div class="card-desc">Spreadsheets & data</div>
+            </a>
+            <a href="/workspace/ocalc.html" class="app-card">
+                <div class="card-icon">🔢</div>
+                <div class="card-name">OCalc</div>
+                <div class="card-desc">Quick calculator</div>
+            </a>
+            <a href="/workspace/opoint.html" class="app-card">
+                <div class="card-icon">📽️</div>
+                <div class="card-name">OPoint</div>
+                <div class="card-desc">Presentations</div>
+            </a>
+        </div>
+    </div>
+
+    <script src="/static/theme.js"></script>
+    <script src="/static/utils.js"></script>
+    <script src="/static/toasts.js"></script>
+    <script>
+        (async () => {
+            const me = await fetch('/api/me');
+            if (!me.ok) return window.location.href = '/login.html';
+        })();
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            const token = localStorage.getItem('omedia_token');
+            try {
+                await fetch('/api/logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ csrf_token: token })
+                });
+            } catch (e) {}
+            localStorage.removeItem('omedia_token');
+            window.location.href = '/login.html';
+        });
+    </script>
+</body>
+</html>

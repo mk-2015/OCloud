@@ -118,7 +118,7 @@ async def login(request: Request, payload: dict, response: Response):
         csrf_token = _generate_csrf_token()
         _set_csrf_cookie(response, csrf_token)
         await log_audit("login", ADMIN_USERNAME, "admin login", client_ip)
-        return {"status": "Logged in", "username": ADMIN_USERNAME, "role": "admin"}
+        return {"status": "Logged in", "username": ADMIN_USERNAME, "role": "admin", "token": token}
 
     async with aiosqlite.connect(DABA) as db:
         cursor = await db.execute(
@@ -149,7 +149,7 @@ async def login(request: Request, payload: dict, response: Response):
     csrf_token = _generate_csrf_token()
     _set_csrf_cookie(response, csrf_token)
     await log_audit("login", payload["username"], ip=client_ip)
-    return {"status": "Logged in", "username": payload["username"], "role": "user"}
+    return {"status": "Logged in", "username": payload["username"], "role": "user", "token": token}
 
 @omedia_router.post("/api/logout")
 async def logout(request: Request, response: Response):

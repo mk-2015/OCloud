@@ -224,7 +224,7 @@ async def lambda_shell(websocket: WebSocket, lambda_id: str):
     async def pump_ws_to_docker():
         try:
             while True:
-                data = await websocket.receive_bytes(max_size=1048576)
+                data = await websocket.receive_bytes()
                 writer.write(data)
                 await writer.drain()
         except (WebSocketDisconnect, Exception):

@@ -42,9 +42,7 @@ async def task_expiry():
 
 
 def init_fileshare():
-    @Rfileshare.on_event("startup")
-    async def start_expiry_task():
-        asyncio.create_task(task_expiry())
+    pass
 
 
 @Rfileshare.get("/api/fileshare/test")

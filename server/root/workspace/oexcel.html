@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OExcel</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+:root{--bg-main:#0f172a;--bg-card:#1e293b;--bg-header:#1e293b;--border-color:#334155;--accent-cyan:#06b6d4;--text-primary:#f1f5f9;--text-secondary:#94a3b8;--cell-bg:#0f172a;--cell-alt:rgba(255,255,255,0.02);--header-bg:#1e293b;--selected-bg:rgba(6,182,212,0.08);--scrollbar-track:rgba(255,255,255,0.04);--scrollbar-thumb:rgba(255,255,255,0.1);--dropdown-bg:#1e293b;--hover-bg:rgba(255,255,255,0.06);--row-header-bg:#1e293b}
+[data-theme="light"]{--bg-main:#f8fafc;--bg-card:#ffffff;--bg-header:#f1f5f9;--border-color:#e2e8f0;--accent-cyan:#0891b2;--text-primary:#0f172a;--text-secondary:#64748b;--cell-bg:#ffffff;--cell-alt:rgba(0,0,0,0.02);--header-bg:#f1f5f9;--selected-bg:rgba(8,145,178,0.08);--scrollbar-track:rgba(0,0,0,0.04);--scrollbar-thumb:rgba(0,0,0,0.12);--dropdown-bg:#ffffff;--hover-bg:rgba(0,0,0,0.04);--row-header-bg:#f1f5f9}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg-main);color:var(--text-primary);height:100vh;overflow:hidden}
+*{scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) var(--scrollbar-track)}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--scrollbar-track)}
+::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-secondary)}
+
+#pickerView{display:flex;flex-direction:column;height:100vh}
+.picker-header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--bg-card);border-bottom:1px solid var(--border-color);flex-shrink:0}
+.picker-header-title{font-size:1.1rem;font-weight:700}
+.picker-header-spacer{flex:1}
+.picker-body{flex:1;overflow-y:auto;padding:24px 20px;display:flex;justify-content:center}
+.file-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;width:100%;max-width:800px;align-content:start}
+.file-card{background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:20px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:4px}
+.file-card:hover{border-color:var(--accent-cyan);transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.file-card-icon{color:var(--accent-cyan);margin-bottom:6px}
+.file-card-name{font-size:.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-card-meta{font-size:.75rem;color:var(--text-secondary);margin-top:4px}
+.file-card-new{border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-secondary);font-size:.85rem;font-weight:600;min-height:100px}
+.file-card-new:hover{color:var(--accent-cyan);border-color:var(--accent-cyan)}
+.file-card-new .plus{font-size:2rem;line-height:1}
+.file-card-actions{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.file-card{position:relative}
+.file-card:hover .file-card-actions{opacity:1}
+.file-card-action{background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:4px;border-radius:4px;font-size:.75rem}
+.file-card-action:hover{color:var(--accent-cyan);background:var(--hover-bg)}
+.empty-state{grid-column:1/-1;text-align:center;color:var(--text-secondary);font-size:.9rem;padding:32px 0}
+
+#editorView{display:none;flex-direction:column;height:100vh}
+.editor-body{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+.header{display:flex;align-items:center;gap:12px;padding:10px 20px;background:var(--bg-card);border-bottom:1px solid var(--border-color);flex-shrink:0;z-index:100}
+.back-btn{background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1.2rem;padding:4px 8px;border-radius:6px;transition:all .15s;display:flex;align-items:center;text-decoration:none}
+.back-btn:hover{color:var(--text-primary);background:var(--hover-bg)}
+.doc-name-input{background:transparent;border:1px solid transparent;color:var(--text-primary);font-size:1rem;font-weight:600;padding:4px 8px;border-radius:6px;outline:none;transition:border-color .15s;min-width:160px}
+.doc-name-input:hover{border-color:var(--border-color)}
+.doc-name-input:focus{border-color:var(--accent-cyan)}
+.header-spacer{flex:1}
+.header-actions{display:flex;gap:8px;align-items:center}
+
+.btn{border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.8rem;color:var(--text-primary);background:rgba(128,128,128,.15);transition:all .15s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;position:relative}
+.btn:hover{background:rgba(128,128,128,.25)}
+.btn-primary{background:var(--accent-cyan);color:#fff}
+.btn-primary:hover{filter:brightness(1.15)}
+
+.save-status{font-size:.75rem;color:var(--text-secondary);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.save-dot{width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block}
+.save-dot.saving{background:var(--accent-cyan);animation:pulse .8s infinite}
+.save-dot.unsaved{background:#f59e0b}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.export-wrap{position:relative}
+.export-dropdown{position:absolute;top:calc(100% + 4px);right:0;background:var(--dropdown-bg);border:1px solid var(--border-color);border-radius:8px;padding:4px 0;z-index:200;min-width:160px;box-shadow:0 8px 32px rgba(0,0,0,.4);display:none}
+.export-dropdown.visible{display:block}
+.export-dropdown-item{padding:7px 14px;font-size:.8rem;cursor:pointer;color:var(--text-primary);transition:background .1s}
+.export-dropdown-item:hover{background:var(--hover-bg)}
+
+.toolbar{display:flex;align-items:center;gap:6px;padding:5px 20px;background:var(--bg-header);border-bottom:1px solid var(--border-color);min-height:36px;flex-shrink:0;font-size:.8rem}
+.cell-ref-display{width:64px;background:var(--cell-bg);border:1px solid var(--border-color);color:var(--text-primary);padding:3px 6px;border-radius:4px;font-size:.75rem;text-align:center;outline:none;font-family:'SF Mono','Fira Code',Consolas,monospace}
+.cell-ref-display:focus{border-color:var(--accent-cyan)}
+.toolbar-sep{width:1px;height:20px;background:var(--border-color);margin:0 2px}
+.formula-bar{flex:1;background:var(--cell-bg);border:1px solid var(--border-color);color:var(--text-primary);padding:3px 8px;border-radius:4px;font-size:.8rem;font-family:'SF Mono','Fira Code',Consolas,monospace;outline:none}
+.formula-bar:focus{border-color:var(--accent-cyan)}
+
+.sheet-tabs-bar{display:flex;align-items:center;gap:2px;padding:0 16px;background:var(--bg-header);border-bottom:1px solid var(--border-color);min-height:32px;flex-shrink:0;overflow-x:auto}
+.sheet-tab{padding:5px 16px;font-size:.75rem;color:var(--text-secondary);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;transition:all .15s;font-family:inherit;white-space:nowrap;border-radius:4px 4px 0 0}
+.sheet-tab:hover{background:var(--hover-bg);color:var(--text-primary)}
+.sheet-tab.active{color:var(--accent-cyan);border-bottom-color:var(--accent-cyan);font-weight:600}
+.sheet-tab-add{padding:5px 10px;background:none;border:1px dashed var(--border-color);color:var(--text-secondary);cursor:pointer;border-radius:4px;transition:all .15s;font-size:.85rem}
+.sheet-tab-add:hover{background:var(--hover-bg);color:var(--accent-cyan);border-color:var(--accent-cyan)}
+.sheet-tab-rename{background:var(--cell-bg);border:1px solid var(--accent-cyan);color:var(--text-primary);padding:2px 6px;border-radius:4px;font-size:.75rem;outline:none;width:90px;font-family:inherit}
+
+.grid-area{flex:1;overflow:auto;position:relative}
+table.grid{border-collapse:collapse;table-layout:fixed;user-select:none}
+table.grid th,table.grid td{border:1px solid var(--border-color);padding:0;position:relative}
+table.grid thead th{background:var(--header-bg);color:var(--text-secondary);font-weight:600;font-size:.75rem;text-align:center;padding:5px 0;position:sticky;top:0;z-index:2}
+table.grid thead th:first-child{position:sticky;left:0;z-index:3;width:48px;min-width:48px;background:var(--header-bg)}
+table.grid tbody th{background:var(--row-header-bg);color:var(--text-secondary);font-weight:600;font-size:.75rem;text-align:center;width:48px;min-width:48px;position:sticky;left:0;z-index:1;padding:0 4px}
+table.grid tbody td{background:var(--cell-bg);height:28px;padding:0;font-size:.82rem;cursor:cell;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:500px}
+table.grid tbody tr:nth-child(even) td{background:var(--cell-alt)}
+table.grid td.selected{outline:2px solid var(--accent-cyan);outline-offset:-1px;z-index:1}
+table.grid td .cell-content{display:block;width:100%;height:100%;padding:3px 7px;overflow:hidden;text-overflow:ellipsis;line-height:22px}
+table.grid td input.cell-editor{width:100%;height:100%;border:none;outline:none;background:var(--cell-bg);color:var(--text-primary);padding:3px 7px;font-size:.82rem;font-family:inherit}
+.col-resize-handle{position:absolute;right:-3px;top:0;width:6px;height:100%;cursor:col-resize;z-index:4}
+.col-resize-handle:hover,.col-resize-handle.active{background:var(--accent-cyan);opacity:.5}
+th{background:var(--header-bg)}
+
+.status-bar{display:flex;align-items:center;justify-content:space-between;padding:3px 20px;background:var(--bg-card);border-top:1px solid var(--border-color);font-size:.7rem;color:var(--text-secondary);min-height:24px;flex-shrink:0}
+.status-left,.status-right{display:flex;align-items:center;gap:16px}
+
+#contextMenu{position:fixed;background:var(--dropdown-bg);border:1px solid var(--border-color);border-radius:8px;padding:4px 0;z-index:1000;display:none;min-width:170px;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+#contextMenu.visible{display:block}
+#contextMenu .cm-item{padding:6px 14px;font-size:.8rem;cursor:pointer;color:var(--text-primary);transition:background .1s;display:flex;align-items:center;gap:8px}
+#contextMenu .cm-item:hover{background:var(--hover-bg)}
+#contextMenu .cm-sep{height:1px;background:var(--border-color);margin:4px 0}
+#contextMenu .cm-item .shortcut{margin-left:auto;font-size:.7rem;color:var(--text-secondary);opacity:.7}
+
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:flex;align-items:center;justify-content:center}
+.modal-overlay.hidden{display:none}
+.modal-box{background:var(--bg-card);border:1px solid var(--border-color);border-radius:12px;padding:20px;min-width:360px;max-width:520px;max-height:70vh;display:flex;flex-direction:column;gap:12px}
+.modal-title{font-size:1rem;font-weight:700}
+.modal-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px}
+.modal-list-empty{color:var(--text-secondary);font-size:.85rem;text-align:center;padding:24px 0}
+.modal-file-item{padding:8px 12px;border-radius:8px;cursor:pointer;font-size:.85rem;color:var(--text-primary);transition:background .1s;display:flex;align-items:center;gap:8px}
+.modal-file-item:hover{background:var(--hover-bg)}
+.modal-file-item svg{flex-shrink:0;color:var(--accent-cyan)}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px}
+
+@media(max-width:768px){
+.header{flex-wrap:wrap;gap:8px;padding:8px 12px}
+.toolbar{flex-wrap:wrap;padding:4px 12px}
+.doc-name-input{min-width:80px;flex:1}
+.header-actions{flex-wrap:wrap;gap:4px}
+}
+</style>
+</head>
+<body>
+
+<div id="pickerView">
+  <header class="picker-header">
+    <a href="/workspace/" class="back-btn" title="Back to Workspace">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18 6-6-6-6"/></svg>
+    </a>
+    <span class="picker-header-title">OExcel</span>
+    <span style="color:var(--text-secondary);font-size:.8rem">Spreadsheets</span>
+    <div class="picker-header-spacer"></div>
+    <button class="btn" id="btnImportOMedia"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import CSV from OMedia</button>
+    <button class="btn" id="btnImportDisk"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>Open CSV from Disk</button>
+    <input type="file" id="csvDiskInput" style="display:none" accept=".csv">
+  </header>
+  <div class="picker-body">
+    <div class="file-grid" id="fileGrid"></div>
+  </div>
+  <div class="modal-overlay hidden" id="omediaModal">
+    <div class="modal-box">
+      <div class="modal-title">Import CSV from OMedia</div>
+      <div class="modal-list" id="omediaFileList"></div>
+      <div class="modal-actions">
+        <button class="btn" id="omediaModalClose">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="editorView">
+  <header class="header">
+    <button class="back-btn" id="btnBack" title="Back to spreadsheets">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    <input type="text" class="doc-name-input" id="docNameInput" placeholder="Untitled Spreadsheet" spellcheck="false">
+    <div class="header-spacer"></div>
+    <div class="header-actions">
+      <span class="save-status"><span class="save-dot" id="saveDot"></span><span id="saveLabel">Saved</span></span>
+      <button class="btn btn-primary" id="btnSave">Save</button>
+      <div class="export-wrap">
+        <button class="btn" id="btnExport">Export ▾</button>
+        <div class="export-dropdown" id="exportDropdown">
+          <div class="export-dropdown-item" data-fmt="xlsx">Download XLSX</div>
+          <div class="export-dropdown-item" data-fmt="csv">Download CSV</div>
+          <div class="export-dropdown-item" data-fmt="json">Download JSON</div>
+        </div>
+      </div>
+      <button class="btn" id="btnTheme">Theme</button>
+    </div>
+  </header>
+  <div class="toolbar" id="toolbar">
+    <input type="text" class="cell-ref-display" id="cellRef" value="A1" readonly>
+    <div class="toolbar-sep"></div>
+    <input type="text" class="formula-bar" id="formulaBar" placeholder="Enter value or formula (e.g. =SUM(A1:A10))" spellcheck="false">
+  </div>
+  <div class="sheet-tabs-bar" id="sheetTabsBar"></div>
+  <div class="grid-area" id="gridArea">
+    <table class="grid" id="grid"></table>
+  </div>
+  <div class="status-bar">
+    <div class="status-left">
+      <span id="statusSheet">Sheet1</span>
+      <span id="statusSize">100 rows × 26 cols</span>
+    </div>
+    <div class="status-right">
+      <span id="statusSum">Sum: 0</span>
+      <span id="statusAvg">Avg: 0</span>
+    </div>
+  </div>
+</div>
+
+<div id="contextMenu">
+  <div class="cm-item" data-action="cut">Cut<span class="shortcut">Ctrl+X</span></div>
+  <div class="cm-item" data-action="copy">Copy<span class="shortcut">Ctrl+C</span></div>
+  <div class="cm-item" data-action="paste">Paste<span class="shortcut">Ctrl+V</span></div>
+  <div class="cm-sep"></div>
+  <div class="cm-item" data-action="insertRowAbove">Insert row above</div>
+  <div class="cm-item" data-action="insertRowBelow">Insert row below</div>
+  <div class="cm-item" data-action="insertColLeft">Insert column left</div>
+  <div class="cm-item" data-action="insertColRight">Insert column right</div>
+  <div class="cm-sep"></div>
+  <div class="cm-item" data-action="deleteRow">Delete row</div>
+  <div class="cm-item" data-action="deleteCol">Delete column</div>
+  <div class="cm-sep"></div>
+  <div class="cm-item" data-action="clearCell">Clear cell<span class="shortcut">Del</span></div>
+</div>
+
+<script src="/static/theme.js"></script>
+<script src="/static/utils.js"></script>
+<script src="/static/toasts.js"></script>
+<script src="/static/workspace.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+var NUM_COLS=26;
+var NUM_ROWS=100;
+var DEFAULT_COL_WIDTH=120;
+var MIN_COL_WIDTH=40;
+var AUTO_SAVE_DEBOUNCE=2000;
+var AUTO_SAVE_PERIODIC=30000;
+
+var workbookData={
+  sheets:{
+    "Sheet1":{cells:{},colWidths:{}}
+  },
+  currentSheet:"Sheet1"
+};
+
+var currentFileName=null;
+var selectedCell={row:1,col:0};
+var isEditing=false;
+var editInput=null;
+var clipboard=null;
+var clipboardMode=null;
+var isDirty=false;
+var autoSaveTimer=null;
+var saveDebounceTimer=null;
+var resizeState=null;
+
+function getSheet(){
+  return workbookData.sheets[workbookData.currentSheet];
+}
+
+function colLetterToIndex(letter){
+  var idx=0;
+  for(var i=0;i<letter.length;i++){
+    idx=idx*26+(letter.charCodeAt(i)-64);
+  }
+  return idx-1;
+}
+
+function indexToColLetter(index){
+  var s='';
+  var i=index;
+  while(i>=0){
+    s=String.fromCharCode(65+(i%26))+s;
+    i=Math.floor(i/26)-1;
+  }
+  return s;
+}
+
+function cellRef(row,col){
+  return indexToColLetter(col)+row;
+}
+
+function parseRef(ref){
+  var m=ref.match(/^([A-Z]+)(\d+)$/);
+  if(!m)return null;
+  return{row:parseInt(m[2],10),col:colLetterToIndex(m[1])};
+}
+
+function getCellRaw(ref){
+  var sheet=getSheet();
+  if(!sheet||!sheet.cells[ref])return'';
+  var c=sheet.cells[ref];
+  return c.v!==undefined?c.v:'';
+}
+
+function setCellValue(ref,value){
+  var sheet=getSheet();
+  if(!sheet)return;
+  if(!sheet.cells[ref])sheet.cells[ref]={};
+  sheet.cells[ref].v=value;
+}
+
+function evaluateCell(ref,sheetName,visited){
+  if(!visited)visited=new Set();
+  var sheet=workbookData.sheets[sheetName];
+  if(!sheet||!sheet.cells[ref])return 0;
+  var cell=sheet.cells[ref];
+  var raw=cell.v;
+  if(raw===undefined||raw===null||raw==='')return 0;
+  if(typeof raw!=='string')return isNaN(Number(raw))?raw:Number(raw);
+  if(raw.charAt(0)!=='=')return isNaN(Number(raw))?raw:Number(raw);
+  if(visited.has(ref))return'Circular!';
+  visited.add(ref);
+  var formula=raw.substring(1).toUpperCase().trim();
+  var funcMatch=formula.match(/^(SUM|AVG|AVERAGE|MIN|MAX|COUNT)\s*\((.+)\)$/);
+  if(funcMatch){
+    var fn=funcMatch[1];
+    var argStr=funcMatch[2];
+    var vals=[];
+    var parts=argStr.split(',');
+    for(var pi=0;pi<parts.length;pi++){
+      var part=parts[pi].trim();
+      var rangeMatch=part.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/);
+      if(rangeMatch){
+        var rCells=expandRange(rangeMatch[0],sheetName,new Set(visited));
+        for(var ri=0;ri<rCells.length;ri++){
+          vals.push(evaluateCell(rCells[ri],sheetName,new Set(visited)));
+        }
+      }else if(part.match(/^[A-Z]+\d+$/)){
+        var up=part.toUpperCase();
+        if(visited.has(up))return'Circular!';
+        vals.push(evaluateCell(up,sheetName,new Set(visited)));
+      }else{
+        var np=parseFloat(part);
+        vals.push(isNaN(np)?0:np);
+      }
+    }
+    var nums=[];
+    for(var vi=0;vi<vals.length;vi++){
+      var n=typeof vals[vi]==='number'?vals[vi]:parseFloat(vals[vi]);
+      if(!isNaN(n))nums.push(n);
+    }
+    switch(fn){
+      case'SUM':return nums.reduce(function(a,b){return a+b;},0);
+      case'AVG':case'AVERAGE':return nums.length?nums.reduce(function(a,b){return a+b;},0)/nums.length:0;
+      case'MIN':return nums.length?Math.min.apply(null,nums):0;
+      case'MAX':return nums.length?Math.max.apply(null,nums):0;
+      case'COUNT':return nums.length;
+      default:return'#NAME?';
+    }
+  }
+  var cellRefMatch=formula.match(/^([A-Z]+)(\d+)$/);
+  if(cellRefMatch){
+    if(visited.has(formula))return'Circular!';
+    return evaluateCell(formula,sheetName,new Set(visited));
+  }
+  var binMatch=formula.match(/^(.+?)\s*([+\-*\/])\s*(.+)$/);
+  if(binMatch){
+    var left=resolveToken(binMatch[1].trim(),sheetName,new Set(visited));
+    var right=resolveToken(binMatch[3].trim(),sheetName,new Set(visited));
+    if(typeof left==='string'&&left.charAt(0)==='#')return left;
+    if(typeof right==='string'&&right.charAt(0)==='#')return right;
+    var lv=parseFloat(left)||0;
+    var rv=parseFloat(right)||0;
+    switch(binMatch[2]){
+      case'+':return lv+rv;
+      case'-':return lv-rv;
+      case'*':return lv*rv;
+      case'/':return rv!==0?lv/rv:'#DIV/0!';
+      default:return'#VALUE!';
+    }
+  }
+  var n2=parseFloat(formula);
+  if(!isNaN(n2))return n2;
+  var directCell=formula.match(/^([A-Z]+)(\d+)$/);
+  if(directCell){
+    if(visited.has(formula))return'Circular!';
+    return evaluateCell(formula,sheetName,new Set(visited));
+  }
+  return formula;
+}
+
+function resolveToken(token,sheetName,visited){
+  token=token.trim();
+  if(token.match(/^[A-Z]+\d+$/)){
+    if(visited.has(token))return'Circular!';
+    return evaluateCell(token,sheetName,new Set(visited));
+  }
+  var n=parseFloat(token);
+  return isNaN(n)?0:n;
+}
+
+function expandRange(rangeStr,sheetName,visited){
+  var parts=rangeStr.split(':');
+  if(parts.length!==2)return[];
+  var s=parseRef(parts[0].trim());
+  var e=parseRef(parts[1].trim());
+  if(!s||!e)return[];
+  var cells=[];
+  var r1=Math.min(s.row,e.row);
+  var r2=Math.max(s.row,e.row);
+  var c1=Math.min(s.col,e.col);
+  var c2=Math.max(s.col,e.col);
+  for(var r=r1;r<=r2;r++){
+    for(var c=c1;c<=c2;c++){
+      cells.push(indexToColLetter(c)+r);
+    }
+  }
+  return cells;
+}
+
+function renderAllCells(){
+  var sheet=getSheet();
+  if(!sheet)return;
+  var tds=document.querySelectorAll('table.grid td[data-ref]');
+  for(var i=0;i<tds.length;i++){
+    var td=tds[i];
+    var ref=td.getAttribute('data-ref');
+    if(!ref)continue;
+    var cell=sheet.cells[ref];
+    if(!cell||cell.v===undefined||cell.v===''){
+      td.textContent='';
+    }else{
+      var val=evaluateCell(ref,workbookData.currentSheet,new Set());
+      td.textContent=typeof val==='string'?val:String(val);
+    }
+  }
+}
+
+function renderCell(ref){
+  var td=document.querySelector('table.grid td[data-ref="'+ref+'"]');
+  if(!td)return;
+  var sheet=getSheet();
+  if(!sheet)return;
+  var cell=sheet.cells[ref];
+  if(!cell||cell.v===undefined||cell.v===''){
+    td.textContent='';
+  }else{
+    var val=evaluateCell(ref,workbookData.currentSheet,new Set());
+    td.textContent=typeof val==='string'?val:String(val);
+  }
+}
+
+function renderCellByRC(row,col){
+  renderCell(indexToColLetter(col)+row);
+}
+
+function buildGrid(){
+  var grid=document.getElementById('grid');
+  var sheet=getSheet();
+  var html='<thead><tr><th class="corner"></th>';
+  for(var c=0;c<NUM_COLS;c++){
+    var lt=indexToColLetter(c);
+    var w=(sheet.colWidths&&sheet.colWidths[lt])||DEFAULT_COL_WIDTH;
+    html+='<th data-col="'+c+'" style="width:'+w+'px;min-width:'+w+'px">'+escapeHTML(lt)+'<div class="col-resize-handle" data-col="'+c+'"></div></th>';
+  }
+  html+='</tr></thead><tbody>';
+  for(var r=1;r<=NUM_ROWS;r++){
+    html+='<tr><th class="row-header">'+r+'</th>';
+    for(var cc=0;cc<NUM_COLS;cc++){
+      var ref=cellRef(r,cc);
+      var raw=getCellRaw(ref);
+      var display=raw;
+      if(typeof raw==='string'&&raw.charAt(0)==='='){
+        display=evaluateCell(ref,workbookData.currentSheet,new Set());
+      }
+      var esc=typeof display==='string'?escapeHTML(String(display)):escapeHTML(String(display));
+      html+='<td data-col="'+cc+'" data-row="'+r+'" data-ref="'+ref+'"><span class="cell-content">'+esc+'</span></td>';
+    }
+    html+='</tr>';
+  }
+  html+='</tbody>';
+  grid.innerHTML=html;
+}
+
+function selectCell(row,col){
+  if(isEditing)commitEdit();
+  document.querySelectorAll('table.grid td.selected').forEach(function(t){
+    t.classList.remove('selected');
+  });
+  var td=document.querySelector('table.grid td[data-row="'+row+'"][data-col="'+col+'"]');
+  if(!td)return;
+  td.classList.add('selected');
+  selectedCell={row:row,col:col};
+  document.getElementById('cellRef').value=cellRef(row,col);
+  document.getElementById('formulaBar').value=getCellRaw(cellRef(row,col));
+  updateStatus();
+  scrollCellIntoView(row,col);
+}
+
+function scrollCellIntoView(row,col){
+  var td=document.querySelector('table.grid td[data-row="'+row+'"][data-col="'+col+'"]');
+  if(!td)return;
+  var area=document.getElementById('gridArea');
+  var rect=td.getBoundingClientRect();
+  var areaRect=area.getBoundingClientRect();
+  if(rect.bottom>areaRect.bottom){
+    td.scrollIntoView({block:'nearest'});
+  }
+  if(rect.top<areaRect.top+32){
+    td.scrollIntoView({block:'nearest'});
+  }
+  if(rect.right>areaRect.right){
+    td.scrollIntoView({inline:'nearest'});
+  }
+  if(rect.left<areaRect.left+48){
+    td.scrollIntoView({inline:'nearest'});
+  }
+}
+
+function updateStatus(){
+  var sheet=getSheet();
+  if(!sheet)return;
+  var sum=0;
+  var numCount=0;
+  var keys=Object.keys(sheet.cells);
+  for(var i=0;i<keys.length;i++){
+    var v=sheet.cells[keys[i]].v;
+    if(v!==''&&v!==undefined&&v!==null&&typeof v==='string'&&v.charAt(0)==='='){
+      var ev=evaluateCell(keys[i],workbookData.currentSheet,new Set());
+      if(typeof ev==='number'&&!isNaN(ev)){sum+=ev;numCount++;}
+    }else if(v!==''&&v!==undefined&&v!==null){
+      var n=parseFloat(v);
+      if(!isNaN(n)){sum+=n;numCount++;}
+    }
+  }
+  var avg=numCount?(sum/numCount):0;
+  document.getElementById('statusSheet').textContent=workbookData.currentSheet;
+  document.getElementById('statusSize').textContent=NUM_ROWS+' rows × '+NUM_COLS+' cols';
+  document.getElementById('statusSum').textContent='Sum: '+Math.round(sum*1e10)/1e10;
+  document.getElementById('statusAvg').textContent='Avg: '+Math.round(avg*1e10)/1e10;
+}
+
+function startEdit(row,col,initialValue){
+  if(isEditing)commitEdit();
+  isEditing=true;
+  var td=document.querySelector('table.grid td[data-row="'+row+'"][data-col="'+col+'"]');
+  if(!td)return;
+  var ref=cellRef(row,col);
+  var raw=initialValue!==undefined?initialValue:getCellRaw(ref);
+  td.innerHTML='<input type="text" class="cell-editor" value="'+escapeHTML(String(raw)).replace(/"/g,'&quot;')+'">';
+  editInput=td.querySelector('input');
+  editInput.focus();
+  if(initialValue!==undefined){
+    editInput.setSelectionRange(editInput.value.length,editInput.value.length);
+  }else{
+    editInput.select();
+  }
+  document.getElementById('formulaBar').value=raw;
+  td.classList.add('editing');
+}
+
+function commitEdit(){
+  if(!isEditing)return false;
+  isEditing=false;
+  var td=document.querySelector('table.grid td[data-row="'+selectedCell.row+'"][data-col="'+selectedCell.col+'"]');
+  if(td){
+    var input=td.querySelector('input');
+    if(input){
+      var ref=cellRef(selectedCell.row,selectedCell.col);
+      setCellValue(ref,input.value);
+      td.classList.remove('editing');
+      renderCell(ref);
+      document.getElementById('formulaBar').value=getCellRaw(ref);
+      recalcDependents();
+    }
+  }
+  editInput=null;
+  markDirty();
+  updateStatus();
+  return true;
+}
+
+function cancelEdit(){
+  if(!isEditing)return;
+  isEditing=false;
+  var td=document.querySelector('table.grid td[data-row="'+selectedCell.row+'"][data-col="'+selectedCell.col+'"]');
+  if(td)td.classList.remove('editing');
+  editInput=null;
+  renderCellByRC(selectedCell.row,selectedCell.col);
+  document.getElementById('formulaBar').value=getCellRaw(cellRef(selectedCell.row,selectedCell.col));
+}
+
+function recalcDependents(){
+  var sheet=getSheet();
+  if(!sheet)return;
+  var keys=Object.keys(sheet.cells);
+  for(var i=0;i<keys.length;i++){
+    var cell=sheet.cells[keys[i]];
+    if(cell.v&&typeof cell.v==='string'&&cell.v.charAt(0)==='='){
+      renderCell(keys[i]);
+    }
+  }
+}
+
+function markDirty(){
+  isDirty=true;
+  var dot=document.getElementById('saveDot');
+  dot.className='save-dot unsaved';
+  document.getElementById('saveLabel').textContent='Unsaved';
+  clearTimeout(saveDebounceTimer);
+  saveDebounceTimer=setTimeout(function(){
+    saveFile();
+  },AUTO_SAVE_DEBOUNCE);
+}
+
+function markSaving(){
+  var dot=document.getElementById('saveDot');
+  dot.className='save-dot saving';
+  document.getElementById('saveLabel').textContent='Saving...';
+}
+
+function markSaved(){
+  var dot=document.getElementById('saveDot');
+  dot.className='save-dot';
+  document.getElementById('saveLabel').textContent='Saved';
+  isDirty=false;
+}
+
+async function saveFile(){
+  if(!currentFileName)return;
+  markSaving();
+  try{
+    var payload={sheets:{},currentSheet:workbookData.currentSheet};
+    var sheetNames=Object.keys(workbookData.sheets);
+    for(var i=0;i<sheetNames.length;i++){
+      var sn=sheetNames[i];
+      var sd=workbookData.sheets[sn];
+      payload.sheets[sn]={cells:{},colWidths:sd.colWidths||{}};
+      var cellKeys=Object.keys(sd.cells);
+      for(var j=0;j<cellKeys.length;j++){
+        payload.sheets[sn].cells[cellKeys[j]]={v:sd.cells[cellKeys[j]].v};
+      }
+    }
+    var result=await WorkspaceAPI.saveFile(currentFileName,payload);
+    if(result){
+      markSaved();
+    }else{
+      document.getElementById('saveDot').className='save-dot unsaved';
+      document.getElementById('saveLabel').textContent='Save failed';
+    }
+  }catch(e){
+    document.getElementById('saveDot').className='save-dot unsaved';
+    document.getElementById('saveLabel').textContent='Save failed';
+    showToast('Failed to save spreadsheet','error');
+  }
+}
+
+function startAutoSave(){
+  stopAutoSave();
+  autoSaveTimer=setInterval(function(){
+    if(isDirty&&currentFileName)saveFile();
+  },AUTO_SAVE_PERIODIC);
+}
+
+function stopAutoSave(){
+  if(autoSaveTimer){
+    clearInterval(autoSaveTimer);
+    autoSaveTimer=null;
+  }
+}
+
+function renderSheetTabs(){
+  var bar=document.getElementById('sheetTabsBar');
+  var names=Object.keys(workbookData.sheets);
+  var html='';
+  for(var i=0;i<names.length;i++){
+    var n=names[i];
+    var cls='sheet-tab'+(n===workbookData.currentSheet?' active':'');
+    html+='<button class="'+cls+'" data-sheet="'+escapeHTML(n)+'">'+escapeHTML(n)+'</button>';
+  }
+  html+='<button class="sheet-tab-add" id="addSheetBtn" title="Add sheet">+</button>';
+  bar.innerHTML=html;
+  bar.querySelectorAll('.sheet-tab').forEach(function(tab){
+    tab.addEventListener('click',function(e){
+      if(e.target.classList.contains('sheet-tab-rename'))return;
+      if(isEditing)commitEdit();
+      workbookData.currentSheet=tab.dataset.sheet;
+      renderSheetTabs();
+      buildGrid();
+      selectCell(1,0);
+    });
+    tab.addEventListener('dblclick',function(e){
+      e.stopPropagation();
+      startSheetRename(tab,tab.dataset.sheet);
+    });
+    tab.addEventListener('contextmenu',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      showSheetContextMenu(e,tab.dataset.sheet);
+    });
+  });
+  var addBtn=document.getElementById('addSheetBtn');
+  if(addBtn){
+    addBtn.addEventListener('click',function(){
+      var n=Object.keys(workbookData.sheets).length+1;
+      var name='Sheet'+n;
+      while(workbookData.sheets[name]){n++;name='Sheet'+n;}
+      workbookData.sheets[name]={cells:{},colWidths:{}};
+      workbookData.currentSheet=name;
+      renderSheetTabs();
+      buildGrid();
+      selectCell(1,0);
+      markDirty();
+    });
+  }
+}
+
+function startSheetRename(tab,oldName){
+  var inp=document.createElement('input');
+  inp.type='text';
+  inp.className='sheet-tab-rename';
+  inp.value=oldName;
+  tab.textContent='';
+  tab.appendChild(inp);
+  inp.focus();
+  inp.select();
+  var done=false;
+  function finish(){
+    if(done)return;
+    done=true;
+    var newName=inp.value.trim();
+    if(newName&&newName!==oldName&&!workbookData.sheets[newName]){
+      workbookData.sheets[newName]=workbookData.sheets[oldName];
+      delete workbookData.sheets[oldName];
+      if(workbookData.currentSheet===oldName){
+        workbookData.currentSheet=newName;
+      }
+      markDirty();
+    }
+    renderSheetTabs();
+  }
+  inp.addEventListener('blur',finish);
+  inp.addEventListener('keydown',function(ke){
+    if(ke.key==='Enter'){ke.preventDefault();inp.blur();}
+    if(ke.key==='Escape'){inp.value=oldName;inp.blur();}
+  });
+}
+
+function showSheetContextMenu(e,sheetName){
+  var menu=document.getElementById('contextMenu');
+  menu.innerHTML='';
+  var renameItem=document.createElement('div');
+  renameItem.className='cm-item';
+  renameItem.textContent='Rename';
+  renameItem.addEventListener('click',function(){
+    menu.classList.remove('visible');
+    var tab=document.querySelector('.sheet-tab[data-sheet="'+sheetName+'"]');
+    if(tab)startSheetRename(tab,sheetName);
+  });
+  menu.appendChild(renameItem);
+  if(Object.keys(workbookData.sheets).length>1){
+    var sep=document.createElement('div');
+    sep.className='cm-sep';
+    menu.appendChild(sep);
+    var deleteItem=document.createElement('div');
+    deleteItem.className='cm-item';
+    deleteItem.textContent='Delete';
+    deleteItem.addEventListener('click',function(){
+      menu.classList.remove('visible');
+      delete workbookData.sheets[sheetName];
+      if(workbookData.currentSheet===sheetName){
+        workbookData.currentSheet=Object.keys(workbookData.sheets)[0];
+      }
+      renderSheetTabs();
+      buildGrid();
+      selectCell(1,0);
+      markDirty();
+    });
+    menu.appendChild(deleteItem);
+  }
+  menu.style.left=e.clientX+'px';
+  menu.style.top=e.clientY+'px';
+  menu.classList.add('visible');
+}
+
+function copyCell(){
+  var ref=cellRef(selectedCell.row,selectedCell.col);
+  clipboard={ref:ref,value:getCellRaw(ref)};
+  clipboardMode='copy';
+}
+
+function cutCell(){
+  var ref=cellRef(selectedCell.row,selectedCell.col);
+  clipboard={ref:ref,value:getCellRaw(ref)};
+  clipboardMode='cut';
+}
+
+function pasteCell(){
+  if(!clipboard)return;
+  var target=cellRef(selectedCell.row,selectedCell.col);
+  setCellValue(target,clipboard.value);
+  renderCell(target);
+  if(clipboardMode==='cut'){
+    setCellValue(clipboard.ref,'');
+    renderCell(clipboard.ref);
+    clipboard=null;
+    clipboardMode=null;
+  }
+  recalcDependents();
+  document.getElementById('formulaBar').value=getCellRaw(target);
+  markDirty();
+  updateStatus();
+}
+
+function insertRow(atRow,side){
+  var sheet=getSheet();
+  if(!sheet)return;
+  var newCells={};
+  var insertAt=side==='below'?atRow+1:atRow;
+  var keys=Object.keys(sheet.cells);
+  for(var i=0;i<keys.length;i++){
+    var p=parseRef(keys[i]);
+    if(!p)continue;
+    if(p.row>=insertAt){
+      var newRef=indexToColLetter(p.col)+(p.row+1);
+      newCells[newRef]=sheet.cells[keys[i]];
+    }else{
+      newCells[keys[i]]=sheet.cells[keys[i]];
+    }
+  }
+  sheet.cells=newCells;
+  buildGrid();
+  selectCell(selectedCell.row,selectedCell.col);
+  markDirty();
+}
+
+function insertCol(atCol,side){
+  var sheet=getSheet();
+  if(!sheet)return;
+  var newCells={};
+  var insertAt=side==='right'?atCol+1:atCol;
+  var keys=Object.keys(sheet.cells);
+  for(var i=0;i<keys.length;i++){
+    var p=parseRef(keys[i]);
+    if(!p)continue;
+    if(p.col>=insertAt){
+      var newRef=indexToColLetter(p.col+1)+p.row;
+      newCells[newRef]=sheet.cells[keys[i]];
+    }else{
+      newCells[keys[i]]=sheet.cells[keys[i]];
+    }
+  }
+  sheet.cells=newCells;
+  buildGrid();
+  selectCell(selectedCell.row,selectedCell.col);
+  markDirty();
+}
+
+function deleteRow(atRow){
+  var sheet=getSheet();
+  if(!sheet)return;
+  var newCells={};
+  var keys=Object.keys(sheet.cells);
+  for(var i=0;i<keys.length;i++){
+    var p=parseRef(keys[i]);
+    if(!p)continue;
+    if(p.row===atRow)continue;
+    if(p.row>atRow){
+      var newRef=indexToColLetter(p.col)+(p.row-1);
+      newCells[newRef]=sheet.cells[keys[i]];
+    }else{
+      newCells[keys[i]]=sheet.cells[keys[i]];
+    }
+  }
+  sheet.cells=newCells;
+  buildGrid();
+  selectCell(Math.min(selectedCell.row,NUM_ROWS),selectedCell.col);
+  markDirty();
+}
+
+function deleteCol(atCol){
+  var sheet=getSheet();
+  if(!sheet)return;
+  var newCells={};
+  var keys=Object.keys(sheet.cells);
+  for(var i=0;i<keys.length;i++){
+    var p=parseRef(keys[i]);
+    if(!p)continue;
+    if(p.col===atCol)continue;
+    if(p.col>atCol){
+      var newRef=indexToColLetter(p.col-1)+p.row;
+      newCells[newRef]=sheet.cells[keys[i]];
+    }else{
+      newCells[keys[i]]=sheet.cells[keys[i]];
+    }
+  }
+  sheet.cells=newCells;
+  buildGrid();
+  selectCell(selectedCell.row,Math.min(selectedCell.col,NUM_COLS-1));
+  markDirty();
+}
+
+function doExport(fmt){
+  document.getElementById('exportDropdown').classList.remove('visible');
+  var baseName=(currentFileName||'spreadsheet').replace(/\.[^.]+$/,'');
+  if(fmt==='xlsx'){
+    var wb=XLSX.utils.book_new();
+    var sheetNames=Object.keys(workbookData.sheets);
+    for(var si=0;si<sheetNames.length;si++){
+      var sn=sheetNames[si];
+      var sd=workbookData.sheets[sn];
+      var maxR=1;
+      var maxC=0;
+      var cellKeys=Object.keys(sd.cells);
+      for(var ci=0;ci<cellKeys.length;ci++){
+        var p=parseRef(cellKeys[ci]);
+        if(p){maxR=Math.max(maxR,p.row);maxC=Math.max(maxC,p.col);}
+      }
+      var aoa=[];
+      for(var r=1;r<=maxR;r++){
+        var row=[];
+        for(var c=0;c<=maxC;c++){
+          var ref=indexToColLetter(c)+r;
+          var cell=sd.cells[ref];
+          var val=cell?cell.v:'';
+          if(typeof val==='string'&&val.charAt(0)==='='){
+            val=evaluateCell(ref,sn,new Set());
+          }
+          row.push(val);
+        }
+        aoa.push(row);
+      }
+      var ws=XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb,ws,sn);
+    }
+    XLSX.writeFile(wb,baseName+'.xlsx');
+    showToast('Exported as XLSX','success');
+  }else if(fmt==='csv'){
+    var sheet=getSheet();
+    var csv='';
+    for(var r2=1;r2<=NUM_ROWS;r2++){
+      var row2=[];
+      var hasData=false;
+      for(var c2=0;c2<NUM_COLS;c2++){
+        var ref2=indexToColLetter(c2)+r2;
+        var cell2=sheet.cells[ref2];
+        var val2='';
+        if(cell2&&cell2.v!==undefined&&cell2.v!==''){
+          val2=String(evaluateCell(ref2,workbookData.currentSheet,new Set()));
+          hasData=true;
+        }
+        if(val2.indexOf(',')!==-1||val2.indexOf('"')!==-1||val2.indexOf('\n')!==-1){
+          val2='"'+val2.replace(/"/g,'""')+'"';
+        }
+        row2.push(val2);
+      }
+      if(hasData)csv+=row2.join(',')+'\r\n';
+    }
+    downloadText(csv,baseName+'.csv','text/csv');
+    showToast('Exported as CSV','success');
+  }else if(fmt==='json'){
+    var json=JSON.stringify(workbookData,null,2);
+    downloadText(json,baseName+'.json','application/json');
+    showToast('Exported as JSON','success');
+  }
+}
+
+function downloadText(text,filename,mime){
+  var blob=new Blob([text],{type:mime});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function openPicker(){
+  document.getElementById('editorView').style.display='none';
+  document.getElementById('pickerView').style.display='flex';
+  currentFileName=null;
+  isDirty=false;
+  isEditing=false;
+  stopAutoSave();
+  clearTimeout(saveDebounceTimer);
+  window.history.replaceState({},'',window.location.pathname);
+}
+
+function showEditor(){
+  document.getElementById('pickerView').style.display='none';
+  document.getElementById('editorView').style.display='flex';
+}
+
+async function loadFileList(){
+  var grid=document.getElementById('fileGrid');
+  var files=[];
+  try{
+    var res=await WorkspaceAPI.listFiles('oexcel');
+    if(res&&res.files)files=res.files;
+  }catch(e){}
+  grid.innerHTML='';
+  var newCard=document.createElement('div');
+  newCard.className='file-card file-card-new';
+  newCard.innerHTML='<span class="plus">+</span><span>New Spreadsheet</span>';
+  newCard.addEventListener('click',function(){createNewFile();});
+  grid.appendChild(newCard);
+  if(!files.length){
+    var empty=document.createElement('div');
+    empty.className='empty-state';
+    empty.textContent='No spreadsheets yet';
+    grid.appendChild(empty);
+    return;
+  }
+  files.forEach(function(f){
+    var card=document.createElement('div');
+    card.className='file-card';
+    var name=f.name||f.filename||'Untitled';
+    var date=f.modified?new Date(f.modified).toLocaleDateString():'';
+    var size='';
+    if(f.size){
+      if(f.size<1024)size=f.size+' B';
+      else if(f.size<1048576)size=(f.size/1024).toFixed(1)+' KB';
+      else size=(f.size/1048576).toFixed(1)+' MB';
+    }
+    var meta=[size,date].filter(Boolean).join(' · ');
+    card.innerHTML='<div class="file-card-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></div><div class="file-card-name">'+escapeHTML(name.replace(/\.oexcel$/,''))+'</div><div class="file-card-meta">'+escapeHTML(meta)+'</div>';
+    card.addEventListener('click',function(){openFile(f.filename);});
+    grid.appendChild(card);
+  });
+}
+
+async function openFile(name){
+  currentFileName=name;
+  workbookData={sheets:{"Sheet1":{cells:{},colWidths:{}}},currentSheet:"Sheet1"};
+  try{
+    var res=await WorkspaceAPI.readFile(name);
+    if(res){
+      var d=res.data||res;
+      if(d&&d.sheets){
+        workbookData.sheets={};
+        var sNames=Object.keys(d.sheets);
+        for(var i=0;i<sNames.length;i++){
+          var sn=sNames[i];
+          var sd=d.sheets[sn];
+          workbookData.sheets[sn]={cells:{},colWidths:{}};
+          if(sd.cells){
+            var ck=Object.keys(sd.cells);
+            for(var j=0;j<ck.length;j++){
+              var cellData=sd.cells[ck[j]];
+              workbookData.sheets[sn].cells[ck[j]]={v:cellData.v!==undefined?cellData.v:cellData.value!==undefined?cellData.value:''};
+            }
+          }
+          if(sd.colWidths)workbookData.sheets[sn].colWidths=sd.colWidths;
+        }
+        workbookData.currentSheet=d.currentSheet||Object.keys(workbookData.sheets)[0]||'Sheet1';
+      }
+    }
+  }catch(e){}
+  document.getElementById('docNameInput').value=name.replace(/\.oexcel$/,'');
+  showEditor();
+  renderSheetTabs();
+  buildGrid();
+  selectCell(1,0);
+  startAutoSave();
+  window.history.replaceState({},'',window.location.pathname+'?file='+encodeURIComponent(name));
+}
+
+async function createNewFile(){
+  var name=prompt('Spreadsheet name:');
+  if(!name||!name.trim())return;
+  var fn=name.trim();
+  if(!fn.endsWith('.oexcel'))fn+='.oexcel';
+  try{
+    var res=await WorkspaceAPI.createFile(fn,'oexcel');
+    if(res&&res.file){
+      await openFile(res.file.filename);
+      showToast('Spreadsheet created','success');
+    }
+  }catch(e){
+    showToast('Failed to create spreadsheet','error');
+  }
+}
+
+function handleBack(){
+  if(isDirty&&!confirm('You have unsaved changes. Discard them?'))return;
+  openPicker();
+  loadFileList();
+}
+
+function getEventCell(e){
+  var td=e.target.closest('td');
+  if(!td)return null;
+  var row=td.getAttribute('data-row');
+  var col=td.getAttribute('data-col');
+  if(!row||!col)return null;
+  return{row:parseInt(row,10),col:parseInt(col,10)};
+}
+
+function handleGridMouseDown(e){
+  if(e.target.classList.contains('col-resize-handle')){
+    e.preventDefault();
+    var colIdx=parseInt(e.target.getAttribute('data-col'),10);
+    var th=e.target.parentElement;
+    resizeState={col:colIdx,startX:e.clientX,startWidth:th.offsetWidth,handle:e.target};
+    e.target.classList.add('active');
+    return;
+  }
+  var cell=getEventCell(e);
+  if(!cell)return;
+  if(isEditing)commitEdit();
+  selectCell(cell.row,cell.col);
+}
+
+function handleGridDblClick(e){
+  var cell=getEventCell(e);
+  if(cell)startEdit(cell.row,cell.col);
+}
+
+function handleMouseMove(e){
+  if(!resizeState)return;
+  var diff=e.clientX-resizeState.startX;
+  var newWidth=Math.max(MIN_COL_WIDTH,resizeState.startWidth+diff);
+  var lt=indexToColLetter(resizeState.col);
+  var sheet=getSheet();
+  if(sheet){
+    if(!sheet.colWidths)sheet.colWidths={};
+    sheet.colWidths[lt]=newWidth;
+  }
+  var ths=document.querySelectorAll('table.grid thead th[data-col="'+resizeState.col+'"]');
+  for(var i=0;i<ths.length;i++){
+    ths[i].style.width=newWidth+'px';
+    ths[i].style.minWidth=newWidth+'px';
+  }
+  markDirty();
+}
+
+function handleMouseUp(){
+  if(resizeState){
+    resizeState.handle.classList.remove('active');
+    resizeState=null;
+  }
+}
+
+function handleFormulaBarKeyDown(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    var ref=cellRef(selectedCell.row,selectedCell.col);
+    setCellValue(ref,document.getElementById('formulaBar').value);
+    renderCell(ref);
+    recalcDependents();
+    markDirty();
+    updateStatus();
+  }
+}
+
+function handleContextMenu(e){
+  var cell=getEventCell(e);
+  if(!cell)return;
+  e.preventDefault();
+  selectCell(cell.row,cell.col);
+  var menu=document.getElementById('contextMenu');
+  menu.innerHTML='';
+  var items=[
+    {action:'cut',label:'Cut',shortcut:'Ctrl+X'},
+    {action:'copy',label:'Copy',shortcut:'Ctrl+C'},
+    {action:'paste',label:'Paste',shortcut:'Ctrl+V'},
+    {sep:true},
+    {action:'insertRowAbove',label:'Insert row above'},
+    {action:'insertRowBelow',label:'Insert row below'},
+    {action:'insertColLeft',label:'Insert column left'},
+    {action:'insertColRight',label:'Insert column right'},
+    {sep:true},
+    {action:'deleteRow',label:'Delete row'},
+    {action:'deleteCol',label:'Delete column'},
+    {sep:true},
+    {action:'clearCell',label:'Clear cell',shortcut:'Del'}
+  ];
+  items.forEach(function(item){
+    if(item.sep){
+      var sep=document.createElement('div');
+      sep.className='cm-sep';
+      menu.appendChild(sep);
+    }else{
+      var el=document.createElement('div');
+      el.className='cm-item';
+      el.setAttribute('data-action',item.action);
+      el.innerHTML=item.label+(item.shortcut?'<span class="shortcut">'+item.shortcut+'</span>':'');
+      menu.appendChild(el);
+    }
+  });
+  menu.style.left=e.clientX+'px';
+  menu.style.top=e.clientY+'px';
+  menu.classList.add('visible');
+}
+
+function handleContextMenuClick(e){
+  var item=e.target.closest('.cm-item');
+  if(!item)return;
+  var action=item.getAttribute('data-action');
+  var menu=document.getElementById('contextMenu');
+  var row=selectedCell.row;
+  var col=selectedCell.col;
+  var ref=cellRef(row,col);
+  switch(action){
+    case'cut':cutCell();break;
+    case'copy':copyCell();break;
+    case'paste':pasteCell();break;
+    case'insertRowAbove':insertRow(row,'above');break;
+    case'insertRowBelow':insertRow(row,'below');break;
+    case'insertColLeft':insertCol(col,'left');break;
+    case'insertColRight':insertCol(col,'right');break;
+    case'deleteRow':deleteRow(row);break;
+    case'deleteCol':deleteCol(col);break;
+    case'clearCell':
+      setCellValue(ref,'');
+      renderCell(ref);
+      recalcDependents();
+      document.getElementById('formulaBar').value='';
+      markDirty();
+      updateStatus();
+      break;
+  }
+  menu.classList.remove('visible');
+}
+
+function handleDocNameBlur(){
+  if(!currentFileName)return;
+  var newBase=document.getElementById('docNameInput').value.trim();
+  if(!newBase)return;
+  var ext=currentFileName.match(/\.[^.]+$/);
+  ext=ext?ext[0]:'.oexcel';
+  var newName=newBase+ext;
+  if(newName!==currentFileName){
+    var old=currentFileName;
+    currentFileName=newName;
+    WorkspaceAPI.renameFile(old,newName).then(function(res){
+      if(!res){
+        currentFileName=old;
+        document.getElementById('docNameInput').value=old.replace(/\.oexcel$/,'');
+      }else{
+        window.history.replaceState({},'',window.location.pathname+'?file='+encodeURIComponent(newName));
+      }
+    }).catch(function(){
+      currentFileName=old;
+      document.getElementById('docNameInput').value=old.replace(/\.oexcel$/,'');
+    });
+  }
+}
+
+function handleGlobalClick(e){
+  if(!e.target.closest('#contextMenu')){
+    document.getElementById('contextMenu').classList.remove('visible');
+  }
+  if(!e.target.closest('#btnExport')&&!e.target.closest('.export-dropdown')){
+    document.getElementById('exportDropdown').classList.remove('visible');
+  }
+}
+
+function handleGlobalKeyDown(e){
+  if(e.target.id==='formulaBar'||e.target.id==='docNameInput'||e.target.classList.contains('sheet-tab-rename')||e.target.classList.contains('cell-editor')){
+    if(e.target.classList.contains('cell-editor')&&e.key==='Enter'){
+      e.preventDefault();
+      commitEdit();
+      if(e.shiftKey){
+        if(selectedCell.row>1)selectCell(selectedCell.row-1,selectedCell.col);
+      }else{
+        if(selectedCell.row<NUM_ROWS)selectCell(selectedCell.row+1,selectedCell.col);
+      }
+    }else if(e.target.classList.contains('cell-editor')&&e.key==='Tab'){
+      e.preventDefault();
+      commitEdit();
+      if(e.shiftKey){
+        if(selectedCell.col>0)selectCell(selectedCell.row,selectedCell.col-1);
+      }else{
+        if(selectedCell.col<NUM_COLS-1)selectCell(selectedCell.row,selectedCell.col+1);
+      }
+    }else if(e.target.classList.contains('cell-editor')&&e.key==='Escape'){
+      cancelEdit();
+    }else if(e.target.id==='formulaBar'&&e.key==='Enter'){
+      e.preventDefault();
+      var ref=cellRef(selectedCell.row,selectedCell.col);
+      setCellValue(ref,e.target.value);
+      renderCell(ref);
+      recalcDependents();
+      markDirty();
+      updateStatus();
+    }
+    return;
+  }
+  var inPicker=document.getElementById('pickerView').style.display!=='none';
+  if(inPicker)return;
+  if(e.target.id==='docNameInput')return;
+
+  if(isEditing){
+    if(e.key==='Enter'){
+      e.preventDefault();
+      commitEdit();
+      if(e.shiftKey){
+        if(selectedCell.row>1)selectCell(selectedCell.row-1,selectedCell.col);
+      }else{
+        if(selectedCell.row<NUM_ROWS)selectCell(selectedCell.row+1,selectedCell.col);
+      }
+    }else if(e.key==='Tab'){
+      e.preventDefault();
+      commitEdit();
+      if(e.shiftKey){
+        if(selectedCell.col>0)selectCell(selectedCell.row,selectedCell.col-1);
+      }else{
+        if(selectedCell.col<NUM_COLS-1)selectCell(selectedCell.row,selectedCell.col+1);
+      }
+    }else if(e.key==='Escape'){
+      cancelEdit();
+    }
+    return;
+  }
+
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){
+    e.preventDefault();
+    if(currentFileName)saveFile();
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key==='c'){
+    e.preventDefault();
+    copyCell();
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key==='x'){
+    e.preventDefault();
+    cutCell();
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key==='v'){
+    e.preventDefault();
+    pasteCell();
+    return;
+  }
+
+  var newRow=selectedCell.row;
+  var newCol=selectedCell.col;
+  var handled=true;
+  switch(e.key){
+    case'ArrowUp':newRow=Math.max(1,newRow-1);break;
+    case'ArrowDown':newRow=Math.min(NUM_ROWS,newRow+1);break;
+    case'ArrowLeft':newCol=Math.max(0,newCol-1);break;
+    case'ArrowRight':newCol=Math.min(NUM_COLS-1,newCol+1);break;
+    case'Tab':
+      if(e.shiftKey)newCol=Math.max(0,newCol-1);
+      else newCol=Math.min(NUM_COLS-1,newCol+1);
+      break;
+    case'Enter':
+      if(e.shiftKey)newRow=Math.max(1,newRow-1);
+      else newRow=Math.min(NUM_ROWS,newRow+1);
+      break;
+    case'Delete':case'Backspace':
+      e.preventDefault();
+      var cref=cellRef(selectedCell.row,selectedCell.col);
+      setCellValue(cref,'');
+      renderCell(cref);
+      recalcDependents();
+      document.getElementById('formulaBar').value='';
+      markDirty();
+      updateStatus();
+      return;
+    case'F2':
+      e.preventDefault();
+      startEdit(selectedCell.row,selectedCell.col);
+      return;
+    default:
+      handled=false;
+  }
+  if(handled){
+    e.preventDefault();
+    selectCell(newRow,newCol);
+    return;
+  }
+  if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    startEdit(selectedCell.row,selectedCell.col,e.key);
+    return;
+  }
+}
+
+function parseCSV(text){
+  var rows=[];
+  var lines=text.split('\n');
+  for(var i=0;i<lines.length;i++){
+    if(!lines[i].trim())continue;
+    var cells=lines[i].split(',');
+    rows.push(cells.map(function(c){return c.trim().replace(/^"(.*)"$/,'$1');}));
+  }
+  return rows;
+}
+
+function csvRowsToWorkbook(rows){
+  var cells={};
+  for(var r=0;r<rows.length;r++){
+    for(var c=0;c<rows[r].length;c++){
+      var ref=indexToColLetter(c)+(r+1);
+      cells[ref]={v:rows[r][c]};
+    }
+  }
+  return{sheets:{"Sheet1":{cells:cells,colWidths:{}}},currentSheet:"Sheet1"};
+}
+
+function openOMediaModal(){
+  var modal=document.getElementById('omediaModal');
+  var list=document.getElementById('omediaFileList');
+  modal.classList.remove('hidden');
+  list.innerHTML='<div class="modal-list-empty">Loading CSV files...</div>';
+  fetch('/api/omedia/lsfile/'+encodeURIComponent(window._ocloudUser))
+    .then(function(r){return r.json();})
+    .then(function(res){
+      var files=(res&&res.files)?res.files:[];
+      var csvs=files.filter(function(f){
+        var n=(f.name||f.filename||'').toLowerCase();
+        return n.endsWith('.csv');
+      });
+      if(!csvs.length){
+        list.innerHTML='<div class="modal-list-empty">No CSV files found in OMedia</div>';
+        return;
+      }
+      list.innerHTML='';
+      csvs.forEach(function(f){
+        var name=f.name||f.filename||'Untitled';
+        var item=document.createElement('div');
+        item.className='modal-file-item';
+        item.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg><span>'+escapeHTML(name)+'</span>';
+        item.addEventListener('click',function(){
+          modal.classList.add('hidden');
+          importCSVFromOMedia(name);
+        });
+        list.appendChild(item);
+      });
+    })
+    .catch(function(){
+      list.innerHTML='<div class="modal-list-empty">Failed to load OMedia files</div>';
+    });
+}
+
+async function importCSVFromOMedia(filename){
+  try{
+    var url='/api/omedia/download/'+encodeURIComponent(window._ocloudUser)+'/'+encodeURIComponent(filename);
+    var res=await fetch(url);
+    if(!res.ok)throw new Error('Download failed');
+    var text=await res.text();
+    var rows=parseCSV(text);
+    if(!rows.length){showToast('CSV file is empty','error');return;}
+    var wb=csvRowsToWorkbook(rows);
+    var safeName=filename.replace(/\.csv$/i,'');
+    var fn=safeName+'.oexcel';
+    var createRes=await WorkspaceAPI.createFile(fn,'oexcel');
+    if(createRes&&createRes.file){
+      await WorkspaceAPI.saveFile(createRes.file.filename,wb);
+      await openFile(createRes.file.filename);
+      showToast('Imported CSV from OMedia','success');
+    }
+  }catch(e){
+    showToast('Failed to import CSV from OMedia','error');
+  }
+}
+
+async function importCSVFromDisk(file){
+  try{
+    var text=await new Promise(function(resolve,reject){
+      var reader=new FileReader();
+      reader.onload=function(){resolve(reader.result);};
+      reader.onerror=function(){reject(new Error('Read failed'));};
+      reader.readAsText(file);
+    });
+    var rows=parseCSV(text);
+    if(!rows.length){showToast('CSV file is empty','error');return;}
+    var wb=csvRowsToWorkbook(rows);
+    var safeName=file.name.replace(/\.csv$/i,'');
+    var fn=safeName+'.oexcel';
+    var createRes=await WorkspaceAPI.createFile(fn,'oexcel');
+    if(createRes&&createRes.file){
+      await WorkspaceAPI.saveFile(createRes.file.filename,wb);
+      await openFile(createRes.file.filename);
+      showToast('Imported CSV from disk','success');
+    }
+  }catch(e){
+    showToast('Failed to import CSV from disk','error');
+  }
+}
+
+function initPickerView(){
+  document.getElementById('pickerView').style.display='flex';
+  document.getElementById('editorView').style.display='none';
+}
+
+function initEventListeners(){
+  var grid=document.getElementById('grid');
+  grid.addEventListener('mousedown',handleGridMouseDown);
+  grid.addEventListener('dblclick',handleGridDblClick);
+  grid.addEventListener('contextmenu',handleContextMenu);
+  document.addEventListener('mousemove',handleMouseMove);
+  document.addEventListener('mouseup',handleMouseUp);
+  document.getElementById('formulaBar').addEventListener('keydown',handleFormulaBarKeyDown);
+  document.addEventListener('keydown',handleGlobalKeyDown);
+  document.addEventListener('click',handleGlobalClick);
+  document.getElementById('contextMenu').addEventListener('click',handleContextMenuClick);
+  document.getElementById('btnSave').addEventListener('click',function(){
+    if(currentFileName)saveFile();
+  });
+  document.getElementById('btnTheme').addEventListener('click',function(){
+    toggleTheme();
+  });
+  document.getElementById('btnExport').addEventListener('click',function(e){
+    e.stopPropagation();
+    document.getElementById('exportDropdown').classList.toggle('visible');
+  });
+  document.querySelectorAll('.export-dropdown-item').forEach(function(item){
+    item.addEventListener('click',function(){
+      doExport(item.getAttribute('data-fmt'));
+    });
+  });
+  document.getElementById('btnBack').addEventListener('click',handleBack);
+  document.getElementById('docNameInput').addEventListener('blur',handleDocNameBlur);
+  document.getElementById('docNameInput').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();e.target.blur();}
+  });
+  document.getElementById('btnImportOMedia').addEventListener('click',function(){
+    openOMediaModal();
+  });
+  document.getElementById('omediaModalClose').addEventListener('click',function(){
+    document.getElementById('omediaModal').classList.add('hidden');
+  });
+  document.getElementById('omediaModal').addEventListener('click',function(e){
+    if(e.target===e.currentTarget)e.currentTarget.classList.add('hidden');
+  });
+  document.getElementById('btnImportDisk').addEventListener('click',function(){
+    document.getElementById('csvDiskInput').click();
+  });
+  document.getElementById('csvDiskInput').addEventListener('change',function(e){
+    var file=e.target.files[0];
+    if(file)importCSVFromDisk(file);
+    e.target.value='';
+  });
+}
+
+async function init(){
+  try{
+    var res=await fetch('/api/me');
+    if(!res.ok){window.location.href='/login.html';return;}
+    var me=await res.json();
+    window._ocloudUser=me.username||me.user||'';
+  }catch(e){window.location.href='/login.html';return;}
+  initEventListeners();
+  initPickerView();
+  var params=new URLSearchParams(window.location.search);
+  var fileParam=params.get('file');
+  if(fileParam){
+    await openFile(fileParam);
+  }else{
+    await loadFileList();
+  }
+}
+
+init();
+})();
+</script>
+</body>
+</html>
