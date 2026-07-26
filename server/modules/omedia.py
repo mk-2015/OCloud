@@ -64,7 +64,7 @@ def test(response: Response):
     return {"Test": "OK"}
 
 @omedia_router.post("/api/create_user", status_code=status.HTTP_201_CREATED)
-async def create_user(payload: dict, response: Response):
+async def create_user(request: Request, payload: dict, response: Response):
     if not all(k in payload for k in ("username", "password", "email")):
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {"error": "Missing required fields"}

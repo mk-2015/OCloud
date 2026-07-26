@@ -59,7 +59,7 @@ async function loadFiles(path = currentPath) {
     const item = document.createElement('li');
     item.className = 'file-item';
     const isDir = entry.type === 'dir';
-    const icon = isDir ? '📁' : '📄';
+    const icon = isDir ? '\u{1f4c1}' : '\u{1f4c4}';
     item.innerHTML = `
       <div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
         <span class="file-icon">${icon}</span>
@@ -146,64 +146,7 @@ fileList.addEventListener('click', async (event) => {
     });
     if (response.ok) {
       status.textContent = 'Deleted.';
-loadFiles();
-
-async function loadApiKeys() {
-  const response = await fetch('/api/omedia/apikeys');
-  const data = await response.json();
-  apiKeyList.innerHTML = '';
-  if (!data.keys.length) {
-    apiKeyList.innerHTML = '<p class="empty">No API keys.</p>';
-    return;
-  }
-  const list = document.createElement('ul');
-  data.keys.forEach((key) => {
-    const item = document.createElement('li');
-    item.className = 'file-item';
-    item.innerHTML = `
-      <div class="file-info">
-        <span class="file-icon">&#x1f511;</span>
-        <span class="file-name">${escapeHTML(key.label || 'unnamed')} <span style="font-size:0.75rem; color:var(--text-secondary);">(${key.last_used ? 'last used ' + escapeHTML(key.last_used) : 'never used'})</span></span>
-      </div>
-      <div class="file-actions">
-        <button class="link-btn btn-delete" data-deletekey="${key.id}">Revoke</button>
-      </div>
-    `;
-    list.appendChild(item);
-  });
-  apiKeyList.appendChild(list);
-}
-
-createKeyBtn.addEventListener('click', async () => {
-  const label = apiKeyLabel.value.trim() || 'unnamed';
-  const response = await fetch('/api/omedia/apikeys', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
-    body: JSON.stringify({ label })
-  });
-  const data = await response.json();
-  if (response.ok) {
-    apiKeyResult.textContent = `Key: ${data.key}`;
-    apiKeyLabel.value = '';
-    showToast('API key created', 'success');
-    loadApiKeys();
-  } else {
-    apiKeyResult.textContent = data.detail || 'Failed to create key';
-  }
-});
-
-apiKeyList.addEventListener('click', async (event) => {
-  const button = event.target.closest('button');
-  if (!button || !button.hasAttribute('data-deletekey')) return;
-  const keyId = button.getAttribute('data-deletekey');
-  const response = await fetch(`/api/omedia/apikeys/${keyId}`, { method: 'DELETE', headers: { 'X-CSRF-Token': getCsrfToken() } });
-  if (response.ok) {
-    showToast('API key revoked', 'success');
-    loadApiKeys();
-  }
-});
-
-loadApiKeys();
+      loadFiles();
     }
   }
 
@@ -252,4 +195,60 @@ shareForm.addEventListener('submit', async (event) => {
   }
 });
 
+async function loadApiKeys() {
+  const response = await fetch('/api/omedia/apikeys');
+  const data = await response.json();
+  apiKeyList.innerHTML = '';
+  if (!data.keys.length) {
+    apiKeyList.innerHTML = '<p class="empty">No API keys.</p>';
+    return;
+  }
+  const list = document.createElement('ul');
+  data.keys.forEach((key) => {
+    const item = document.createElement('li');
+    item.className = 'file-item';
+    item.innerHTML = `
+      <div class="file-info">
+        <span class="file-icon">&#x1f511;</span>
+        <span class="file-name">${escapeHTML(key.label || 'unnamed')} <span style="font-size:0.75rem; color:var(--text-secondary);">(${key.last_used ? 'last used ' + escapeHTML(key.last_used) : 'never used'})</span></span>
+      </div>
+      <div class="file-actions">
+        <button class="link-btn btn-delete" data-deletekey="${key.id}">Revoke</button>
+      </div>
+    `;
+    list.appendChild(item);
+  });
+  apiKeyList.appendChild(list);
+}
+
+createKeyBtn.addEventListener('click', async () => {
+  const label = apiKeyLabel.value.trim() || 'unnamed';
+  const response = await fetch('/api/omedia/apikeys', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+    body: JSON.stringify({ "label": label })
+  });
+  const data = await response.json();
+  if (response.ok) {
+    apiKeyResult.textContent = `Key: ${data.key}`;
+    apiKeyLabel.value = '';
+    showToast('API key created', 'success');
+    loadApiKeys();
+  } else {
+    apiKeyResult.textContent = data.detail || 'Failed to create key';
+  }
+});
+
+apiKeyList.addEventListener('click', async (event) => {
+  const button = event.target.closest('button');
+  if (!button || !button.hasAttribute('data-deletekey')) return;
+  const keyId = button.getAttribute('data-deletekey');
+  const response = await fetch(`/api/omedia/apikeys/${keyId}`, { method: 'DELETE', headers: { 'X-CSRF-Token': getCsrfToken() } });
+  if (response.ok) {
+    showToast('API key revoked', 'success');
+    loadApiKeys();
+  }
+});
+
 loadFiles();
+loadApiKeys();

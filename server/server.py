@@ -163,6 +163,7 @@ if __name__ == "__main__":
                 port=port,
                 ssl_certfile=config["ssl"].get("certfile", "./cert.pem"),
                 ssl_keyfile=config["ssl"].get("keyfile", "./key.pem"),
+                reload=True
             )
         else:
             print(f"SSL: None. visit: http://{display_host}:{port}")
@@ -170,6 +171,7 @@ if __name__ == "__main__":
                 "server:app",
                 host=host,
                 port=port,
+                reload=True
             )
 
     except KeyboardInterrupt:
