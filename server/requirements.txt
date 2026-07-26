@@ -3,6 +3,7 @@ uvicorn>=0.50.0
 aiosqlite>=0.17.0
 python-multipart
 argon2-cffi
+puremagic>=1.28
 
 # cube
 docker>=7.0.0

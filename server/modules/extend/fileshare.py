@@ -1,6 +1,6 @@
 import asyncio
 import html
-import mimetypes
+import puremagic
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,13 +17,11 @@ Rfileshare = APIRouter()
 copen_fsr: List[Dict[str, Any]] = []
 
 
-def is_binary(path: Path) -> bool:
+def detect_mime(path: Path) -> str:
     try:
-        with open(path, "rb") as f:
-            chunk = f.read(8192)
-        return b"\x00" in chunk
+        return puremagic.from_file(str(path)) or "application/octet-stream"
     except Exception:
-        return False
+        return "application/octet-stream"
 
 
 async def task_expiry():
@@ -123,11 +121,12 @@ async def get_file_pure(request: Request, token: str):
     if not filetopen.exists() or not filetopen.is_file():
         return Response(status_code=404, content="Owner has deleted the file")
 
-    if is_binary(filetopen):
-        mime, _ = mimetypes.guess_type(filepath)
+    mime = detect_mime(filetopen)
+
+    if mime != "text/plain":
         return Response(
             content=filetopen.read_bytes(),
-            media_type=mime or "application/octet-stream",
+            media_type=mime,
         )
 
     content = filetopen.read_text(encoding="utf-8", errors="ignore")
@@ -161,11 +160,12 @@ async def get_file(request: Request, token: str):
             f"<p>The owner has deleted this file before you could access it.</p>",
         )
 
-    if is_binary(filetopen):
-        mime, _ = mimetypes.guess_type(filepath)
+    mime = detect_mime(filetopen)
+
+    if mime != "text/plain":
         return Response(
             content=filetopen.read_bytes(),
-            media_type=mime or "application/octet-stream",
+            media_type=mime,
             headers={
                 "Content-Disposition": f'attachment; filename="{html.escape(filename)}"'
             },
