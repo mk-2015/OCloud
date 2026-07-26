@@ -1,18 +1,10 @@
 const userList = document.getElementById('userList');
 const fileList = document.getElementById('fileList');
 const logoutBtn = document.getElementById('logoutBtn');
+const auditLog = document.getElementById('auditLog');
+const loadMoreAudit = document.getElementById('loadMoreAudit');
 let currentUser = null;
-
-function getCsrfToken() {
-  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : '';
-}
-
-function escapeHTML(str) {
-  const div = document.createElement('div');
-  div.appendChild(document.createTextNode(str));
-  return div.innerHTML;
-}
+let auditOffset = 0;
 
 async function requireAdmin() {
   const response = await fetch('/api/me');
@@ -41,7 +33,7 @@ async function loadUsers() {
     item.className = 'file-item';
     item.innerHTML = `
       <div class="file-info file-user">
-        <span class="file-icon">👤</span>
+        <span class="file-icon">&#x1f464;</span>
         <span class="file-name">${escapeHTML(user.username)} <span style="font-size:0.75rem; color:var(--text-secondary);">(${escapeHTML(user.email)})</span></span>
       </div>
       <div class="file-actions">
@@ -67,7 +59,7 @@ async function loadFiles(username) {
     const item = document.createElement('li');
     item.className = 'file-item';
     const isDir = entry.type === 'dir';
-    const icon = isDir ? '📁' : '📄';
+    const icon = isDir ? '\u{1f4c1}' : '\u{1f4c4}';
     item.innerHTML = `
 		<div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
 			<span class="file-icon">${icon}</span>
@@ -88,6 +80,7 @@ userList.addEventListener('click', async (event) => {
   } else if (button.hasAttribute('data-delete')) {
     const response = await fetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE', headers: { 'X-CSRF-Token': getCsrfToken() } });
     if (response.ok) {
+      showToast('User deleted', 'success');
       loadUsers();
       fileList.innerHTML = '<p class="empty">User deleted.</p>';
     }
@@ -99,4 +92,40 @@ logoutBtn.addEventListener('click', async () => {
   window.location.href = '/login.html';
 });
 
+async function loadAuditLogs(append = false) {
+  if (!append) auditOffset = 0;
+  const response = await fetch(`/api/omedia/admin/audit?limit=50&offset=${auditOffset}`);
+  const data = await response.json();
+  if (!append) auditLog.innerHTML = '';
+  if (!data.logs.length && !append) {
+    auditLog.innerHTML = '<p class="empty">No audit logs yet.</p>';
+    loadMoreAudit.style.display = 'none';
+    return;
+  }
+  const list = auditLog.querySelector('ul') || document.createElement('ul');
+  if (!append) auditLog.appendChild(list);
+  data.logs.forEach((log) => {
+    const item = document.createElement('li');
+    item.className = 'file-item';
+    item.style.flexDirection = 'column';
+    item.style.alignItems = 'flex-start';
+    item.style.gap = '4px';
+    item.innerHTML = `
+      <div style="display:flex; justify-content:space-between; width:100%;">
+        <span style="font-weight:600; color:var(--accent-cyan);">${escapeHTML(log.action)}</span>
+        <span style="font-size:0.75rem; color:var(--text-muted);">${escapeHTML(log.timestamp)}</span>
+      </div>
+      <div style="font-size:0.85rem; color:var(--text-secondary);">
+        ${log.username ? 'User: ' + escapeHTML(log.username) : ''}${log.detail ? ' | ' + escapeHTML(log.detail) : ''}${log.ip ? ' | IP: ' + escapeHTML(log.ip) : ''}
+      </div>
+    `;
+    list.appendChild(item);
+  });
+  auditOffset += data.logs.length;
+  loadMoreAudit.style.display = auditOffset < data.total ? 'inline-block' : 'none';
+}
+
+loadMoreAudit.addEventListener('click', () => loadAuditLogs(true));
+
 loadUsers();
+loadAuditLogs();

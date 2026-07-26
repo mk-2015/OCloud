@@ -2,11 +2,6 @@ const statusDot = document.getElementById('statusDot');
 const logoutBtn = document.getElementById('logoutBtn');
 const terminalEl = document.getElementById('terminal');
 
-function getCsrfToken() {
-  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : '';
-}
-
 const term = new Terminal({
     cursorBlink: true,
     fontSize: 14,

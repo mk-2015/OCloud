@@ -1,10 +1,5 @@
 let createUserForm = document.getElementById("createUserForm");
 
-function getCsrfToken() {
-  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : '';
-}
-
 (async () => {
   await fetch('/api/csrf-token');
 })();
@@ -25,15 +20,14 @@ createUserForm.addEventListener("submit", async (event) => {
     });
 
     if (result.status === 201) {
-        alert("User created successfully!");
+        showToast("User created successfully!", "success");
         createUserForm.reset();
-	window.location.href = "/omedia/userdashboard.html";
+	window.location.href = "/login.html";
     } else {
         let errorData = await result.json();
         let errorMessage = errorData.error || "An error occurred while creating the user.";
 
-        let errorDiv = document.getElementById("error");
+        let errorDiv = document.getElementById("message");
         errorDiv.textContent = errorMessage;
-        errorDiv.style.display = "block";
     }
 });

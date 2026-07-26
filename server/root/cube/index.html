@@ -34,6 +34,18 @@
             --text-muted: #475569;
         }
 
+        [data-theme="light"] {
+            --bg-main: #f1f5f9;
+            --bg-sidebar: #e2e8f0;
+            --bg-editor: #ffffff;
+            --bg-terminal: #f8fafc;
+            --border-color: rgba(0, 0, 0, 0.08);
+            --border-glow: rgba(6, 182, 212, 0.2);
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+        }
+
         /* Scrollbars styling */
         ::-webkit-scrollbar {
             width: 8px;
@@ -580,6 +592,7 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
                     Dashboard
                 </a>
+                <button class="btn" onclick="toggleTheme()">Theme</button>
             </div>
         </header>
 
@@ -703,6 +716,7 @@
     <!-- Monaco Editor Loader -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
     
+    <script src="/static/theme.js"></script>
     <script>
         let currentLambdaId = null;
         let wsConnection = null;

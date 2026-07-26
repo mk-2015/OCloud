@@ -24,12 +24,6 @@ const procBody = document.getElementById('procBody');
 const systemBadge = document.getElementById('systemBadge');
 const logoutBtn = document.getElementById('logoutBtn');
 
-function escapeHTML(str) {
-  const div = document.createElement('div');
-  div.appendChild(document.createTextNode(str));
-  return div.innerHTML;
-}
-
 [cpuFill, memFill, diskFill, swapFill].forEach(c => {
     c.style.strokeDasharray = CIRCUMFERENCE;
     c.style.strokeDashoffset = CIRCUMFERENCE;
@@ -125,7 +119,7 @@ async function refresh() {
 }
 
 logoutBtn.addEventListener('click', async () => {
-    await fetch('/api/logout', { method: 'POST' });
+    await fetch('/api/logout', { method: 'POST', headers: { 'X-CSRF-Token': getCsrfToken() } });
     window.location.href = '/login.html';
 });
 

@@ -2,8 +2,6 @@ from fastapi import HTTPException
 from pathlib import Path
 from path import DATA
 
-TEXT_EXTENSIONS = {".txt", ".md", ".html", ".css", ".js", ".json", ".xml", ".csv", ".py", ".yml", ".yaml"}
-
 def ensure_user_dir(username: str):
     user_dir = DATA / username
     user_dir.mkdir(parents=True, exist_ok=True)

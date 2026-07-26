@@ -7,7 +7,7 @@ services:
     ports:
       - "443:443"
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./config.json:/app/config.json:ro
+      - ./server/data:/app/data
+      - ./server/logs:/app/logs
+      - ./server/config.json:/app/config.json:ro
     restart: unless-stopped

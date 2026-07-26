@@ -21,8 +21,8 @@ docker compose up -d
 
 ```bash
 cd server
-python -m venv .avenv
-source .avenv/Scripts/activate   # Windows/MSYS2
+python -m venv .venv
+source .venv/Scripts/activate   # Windows/MSYS2
 pip install -r requirements.txt
 python server.py init             # initialize database
 python server.py                  # start server

@@ -11,9 +11,7 @@ import asyncio
 import os
 import atexit
 from modules.omedia import omedia_router
-from modules.auth import init_auth_config
-
-t = True
+from modules.auth import init_auth_config, _cleanup_sessions
 
 if len(sys.argv) >= 2 and sys.argv[1] == "init":
     async def init_db():
@@ -24,6 +22,26 @@ if len(sys.argv) >= 2 and sys.argv[1] == "init":
                     username TEXT NOT NULL UNIQUE,
                     password TEXT NOT NULL,
                     email    TEXT NOT NULL UNIQUE
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    username TEXT,
+                    action TEXT NOT NULL,
+                    detail TEXT,
+                    ip TEXT
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS api_keys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key_hash TEXT NOT NULL UNIQUE,
+                    username TEXT NOT NULL,
+                    label TEXT,
+                    created_at TEXT NOT NULL,
+                    last_used TEXT
                 )
             """)
             await db.commit()
@@ -48,6 +66,12 @@ with open(CFIG) as f:
 init_auth_config(config)
 
 app = FastAPI()
+
+@app.on_event("startup")
+async def start_cleanup_task():
+    asyncio.create_task(_cleanup_sessions())
+    if config.get("cube", {}).get("use"):
+        asyncio.create_task(_cleanup_expired_containers())
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -76,10 +100,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+MAX_UPLOAD_BYTES = config.get("max_upload_mb", 1024) * 1024 * 1024
+
+class UploadSizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith("/api/omedia/upload"):
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > MAX_UPLOAD_BYTES:
+                return Response(
+                    status_code=413,
+                    content=f"File too large. Max upload size: {config.get('max_upload_mb', 1024)} MB",
+                )
+        return await call_next(request)
+
+app.add_middleware(UploadSizeLimitMiddleware)
 app.include_router(omedia_router)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
     print("[WARNING] Cube is experimental and in non-production form.")
-    from modules.cube import cube_router, init_cube
+    from modules.cube import cube_router, init_cube, _cleanup_expired_containers
     if config["cube"]["islocal"]:
         init_cube([])
     else:

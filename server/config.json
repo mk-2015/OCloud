@@ -22,5 +22,5 @@
 		"monitord": true,
 		"webshell": true
 	},
-    "admin_password": "admin"
+    "max_upload_mb": 1024
 }

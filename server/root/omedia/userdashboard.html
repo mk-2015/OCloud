@@ -16,6 +16,7 @@
             </div>
             <div class="hero-actions">
                 <a href="/cube/index.html" class="btn btn-primary" style="margin-right: 12px; text-decoration: none; display: inline-block;">Cube IDE</a>
+                <button onclick="toggleTheme()" class="btn btn-secondary" style="margin-right: 12px;">Theme</button>
                 <button id="logoutBtn" class="btn btn-secondary">Logout</button>
             </div>
         </header>
@@ -54,8 +55,22 @@
 				</form>
 				<div id="shareResult" class="share-result"></div>
 			</section>
+
+			<section class="panel" style="grid-column: 1 / -1;">
+				<h2>API Keys</h2>
+				<p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 12px;">Use API keys to access your files programmatically. Send the key in the <code>X-API-Key</code> header.</p>
+				<div class="controls" style="flex-direction: row; gap: 12px; align-items: end;">
+					<input id="apiKeyLabel" placeholder="Label (optional)" style="flex: 1;" />
+					<button id="createKeyBtn" class="btn btn-primary">Generate Key</button>
+				</div>
+				<div id="apiKeyResult" class="status" style="margin-top: 12px; word-break: break-all;"></div>
+				<div id="apiKeyList" class="file-list"></div>
+			</section>
         </main>
     </div>
+    <script src="/static/theme.js"></script>
+    <script src="/static/utils.js"></script>
+    <script src="/static/toasts.js"></script>
     <script src="/static/userdashboard.js"></script>
 </body>
 </html>

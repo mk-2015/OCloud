@@ -8,6 +8,7 @@
 </head>
 <body>
     <div class="auth-shell">
+        <button onclick="toggleTheme()" class="btn" style="position:fixed;top:16px;right:16px;padding:8px 12px;font-size:0.8rem;z-index:100;" aria-label="Toggle theme">Theme</button>
         <div class="panel auth-panel">
             <h2>Create account</h2>
             <form id="createUserForm" class="auth-form">
@@ -20,6 +21,9 @@
             <div id="message" class="status"></div>
         </div>
     </div>
+    <script src="/static/theme.js"></script>
+    <script src="/static/utils.js"></script>
+    <script src="/static/toasts.js"></script>
     <script src="/static/create_user.js"></script>
 </body>
 </html>

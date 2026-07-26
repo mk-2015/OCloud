@@ -6,7 +6,6 @@ import time
 from typing import List, Dict, Any
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from modules.auth import require_session, WebSocketAuthException
 import docker
 
@@ -36,7 +35,7 @@ def init_cube(workerarray: List, local = True):
             islocal = False
             clientidx = 0
             clientnodes = [docker.DockerClient(base_url=url) for url in workerarray]
-    asyncio.get_event_loop().create_task(_cleanup_expired_containers())
+
 
 def _find_lambda(lambda_id: str, session: dict):
     for server in lmbservers:

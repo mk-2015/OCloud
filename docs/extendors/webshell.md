@@ -22,9 +22,11 @@ The shell is selected automatically based on the server OS:
 
 | OS | Primary | Fallback |
 |----|---------|----------|
-| Windows | PowerShell | cmd.exe |
+| Windows | PowerShell | pwsh, cmd.exe |
 | macOS | /bin/zsh | /bin/bash, /bin/sh |
 | Linux | /bin/bash | /bin/sh |
+
+Shell executables are resolved via `shutil.which()` (full PATH lookup) rather than `os.path.exists()`.
 
 ## Terminal
 
@@ -58,9 +60,10 @@ Features:
 
 ### Windows
 
-- Uses `asyncio.create_subprocess_exec` with PowerShell or cmd
-- Separate tasks read stdout and stderr
-- Input is sent directly to stdin
+- Uses `pywinpty` (ConPTY) for a full PTY when available
+- Falls back to `subprocess.Popen` with piped stdin/stdout/stderr if ConPTY is unavailable
+- Separate async tasks read stdout and stderr in the fallback mode
+- Terminal resize events are forwarded to the PTY via `set_size()`
 
 ## API Endpoints
 

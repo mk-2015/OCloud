@@ -15,6 +15,7 @@
                 <p class="hero-copy">Manage users, inspect their files, and remove accounts.</p>
             </div>
 			<a href="/monitor" class="btn btn-primary" style="margin-right: 12px; text-decoration: none; display: inline-block;">Monitord</a>
+            <button onclick="toggleTheme()" class="btn btn-secondary" style="margin-right: 12px;">Theme</button>
             <button id="logoutBtn" class="btn btn-secondary">Logout</button>
         </header>
 
@@ -27,8 +28,16 @@
                 <h2>User files</h2>
                 <div id="fileList" class="file-list"></div>
             </section>
+            <section class="panel" style="grid-column: 1 / -1;">
+                <h2>Audit Log</h2>
+                <div id="auditLog" class="file-list"></div>
+                <button id="loadMoreAudit" class="btn btn-secondary" style="margin-top: 12px; display: none;">Load more</button>
+            </section>
         </main>
     </div>
+    <script src="/static/theme.js"></script>
+    <script src="/static/utils.js"></script>
+    <script src="/static/toasts.js"></script>
     <script src="/static/admin.js"></script>
 </body>
 </html>
