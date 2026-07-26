@@ -1,5 +1,27 @@
 const form = document.getElementById('loginForm');
 const message = document.getElementById('message');
+const submitBtn = form.querySelector('button[type="submit"]');
+let lockoutTimer = null;
+
+function startLockoutCountdown(seconds) {
+  if (lockoutTimer) clearInterval(lockoutTimer);
+  submitBtn.disabled = true;
+  let remaining = seconds;
+  const tick = () => {
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    message.textContent = `Locked out. Try again in ${m}:${String(s).padStart(2, '0')}`;
+    if (remaining <= 0) {
+      clearInterval(lockoutTimer);
+      lockoutTimer = null;
+      submitBtn.disabled = false;
+      message.textContent = '';
+    }
+    remaining--;
+  };
+  tick();
+  lockoutTimer = setInterval(tick, 1000);
+}
 
 function getCsrfToken() {
   const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
@@ -12,6 +34,8 @@ function getCsrfToken() {
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (lockoutTimer) return;
+
   const payload = {
     username: document.getElementById('loginUsername').value,
     password: document.getElementById('loginPassword').value,
@@ -32,5 +56,8 @@ form.addEventListener('submit', async (event) => {
     }
   } else {
     message.textContent = data.error || 'Login failed';
+    if (data.retry_after) {
+      startLockoutCountdown(data.retry_after);
+    }
   }
 });

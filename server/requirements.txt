@@ -1,7 +1,8 @@
 fastapi>=0.139.0
 uvicorn>=0.50.0
 aiosqlite>=0.17.0
-pylint
+python-multipart
+argon2-cffi
 
 # cube
 docker>=7.0.0
@@ -9,5 +10,8 @@ websockets>=13.0
 
 # monitord
 psutil>=5.9.0
+
+# webshell (Windows ConPTY)
+pywinpty>=2.0; sys_platform == "win32"
 
 # aiofiles>=23.1.0

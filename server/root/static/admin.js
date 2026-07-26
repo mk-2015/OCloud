@@ -47,7 +47,7 @@ async function loadUsers() {
       <div class="file-actions">
         <button class="link-btn" data-view="${escapeHTML(user.username)}">View files</button>
         <button class="link-btn btn-delete" data-delete="${escapeHTML(user.username)}">Delete</button>
-      </div>
+     </div>
     `;
     list.appendChild(item);
   });
@@ -69,10 +69,10 @@ async function loadFiles(username) {
     const isDir = entry.type === 'dir';
     const icon = isDir ? '📁' : '📄';
     item.innerHTML = `
-      <div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
-        <span class="file-icon">${icon}</span>
-        <span class="file-name">${escapeHTML(entry.name)} ${entry.type === 'file' ? `<span style="font-size:0.75rem; color:var(--text-secondary);">(${entry.size} bytes)</span>` : ''}</span>
-      </div>
+		<div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
+			<span class="file-icon">${icon}</span>
+			<span class="file-name">${escapeHTML(entry.name)} ${entry.type === 'file' ? `<span style="font-size:0.75rem; color:var(--text-secondary);">(${entry.size} bytes)</span>` : ''}</span>
+		</div>
     `;
     list.appendChild(item);
   });

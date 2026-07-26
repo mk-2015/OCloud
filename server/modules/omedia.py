@@ -9,34 +9,12 @@ import time
 
 from modules.time_utils import now
 from modules.files import ensure_user_dir, resolve_user_path
-from modules.auth import sessions, ADMIN_USERNAME, ADMIN_PASSWORD, require_session
+from modules.auth import sessions, ADMIN_USERNAME, ADMIN_PASSWORD, require_session, _get_client_ip, check_login_rate_limit, record_failed_login, clear_login_attempts, hash_password, verify_password
 
 omedia_router = APIRouter()
 
 CSRF_COOKIE = "csrf_token"
 CSRF_HEADER = "X-CSRF-Token"
-
-_login_attempts: dict[str, list[float]] = {}
-_MAX_ATTEMPTS = 5
-_WINDOW_SECONDS = 900
-
-
-def _check_rate_limit(ip: str):
-    attempts = _login_attempts.get(ip, [])
-    cutoff = time.time() - _WINDOW_SECONDS
-    attempts = [t for t in attempts if t > cutoff]
-    _login_attempts[ip] = attempts
-    if len(attempts) >= _MAX_ATTEMPTS:
-        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
-
-
-def _record_failed_attempt(ip: str):
-    _login_attempts.setdefault(ip, []).append(time.time())
-
-
-def _clear_attempts(ip: str):
-    _login_attempts.pop(ip, None)
-
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -102,7 +80,7 @@ async def create_user(payload: dict, response: Response):
 
         await db.execute(
             "INSERT INTO users (username, password, email) VALUES (?, ?, ?)",
-            (payload["username"], payload["password"], payload["email"])
+            (payload["username"], hash_password(payload["password"]), payload["email"])
         )
         await db.commit()
 
@@ -118,11 +96,14 @@ async def login(request: Request, payload: dict, response: Response):
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {"error": "Missing required fields"}
 
-    client_ip = request.client.host if request.client else "unknown"
-    _check_rate_limit(client_ip)
+    client_ip = _get_client_ip(request)
+    rate_check = check_login_rate_limit(client_ip)
+    if rate_check:
+        response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
+        return {"error": "Too many failed attempts", "retry_after": rate_check["retry_after"], "lockout_level": rate_check["lockout_level"]}
 
-    if payload["username"] == ADMIN_USERNAME and payload["password"] == ADMIN_PASSWORD:
-        _clear_attempts(client_ip)
+    if payload["username"] == ADMIN_USERNAME and verify_password(ADMIN_PASSWORD, payload["password"]):
+        clear_login_attempts(client_ip)
         token = secrets.token_urlsafe(32)
         sessions[token] = {
             "username": ADMIN_USERNAME,
@@ -136,17 +117,22 @@ async def login(request: Request, payload: dict, response: Response):
 
     async with aiosqlite.connect(DABA) as db:
         cursor = await db.execute(
-            "SELECT username FROM users WHERE username = ? AND password = ?",
-            (payload["username"], payload["password"])
+            "SELECT username, password FROM users WHERE username = ?",
+            (payload["username"],)
         )
-        user = await cursor.fetchone()
+        row = await cursor.fetchone()
 
-    if not user:
-        _record_failed_attempt(client_ip)
+    if not row or not verify_password(row[1], payload["password"]):
+        record_failed_login(client_ip)
+        rate_check = check_login_rate_limit(client_ip)
         response.status_code = status.HTTP_401_UNAUTHORIZED
-        return {"error": "Invalid username or password"}
+        result = {"error": "Invalid username or password"}
+        if rate_check:
+            result["retry_after"] = rate_check["retry_after"]
+            result["lockout_level"] = rate_check["lockout_level"]
+        return result
 
-    _clear_attempts(client_ip)
+    clear_login_attempts(client_ip)
     token = secrets.token_urlsafe(32)
     sessions[token] = {
         "username": payload["username"],
@@ -217,6 +203,29 @@ async def admin_delete_user(request: Request, username: str):
     if user_dir.exists():
         shutil.rmtree(user_dir)
     return {"status": "Deleted"}
+
+@omedia_router.post("/api/del_user", status_code=status.HTTP_200_OK)
+async def delete_user(payload: dict, response: Response):
+    if not all(k in payload for k in ("username", "password")):
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"error": "Missing required fields"}
+
+    async with aiosqlite.connect(DABA) as db:
+        cursor = await db.execute(
+            "SELECT id, password FROM users WHERE username = ?",
+            (payload["username"],)
+        )
+        row = await cursor.fetchone()
+        if not row or not verify_password(row[1], payload["password"]):
+            response.status_code = status.HTTP_404_NOT_FOUND
+            return {"error": "User not found or invalid password"}
+        await db.execute("DELETE FROM users WHERE id = ?", (row[0],))
+        await db.commit()
+
+    user_dir = DATA / payload["username"]
+    if user_dir.exists():
+        shutil.rmtree(user_dir)
+    return {"status": "User deleted"}
 
 @omedia_router.get("/api/omedia/list/{username}")
 @omedia_router.get("/api/omedia/lsdir/{username}")

@@ -1,9 +1,20 @@
 import asyncio
 import os
 import platform
+import shutil
+import signal
+import subprocess
+import sys
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from modules.auth import require_session, WebSocketAuthException
+
+_winpty = None
+if platform.system() == "Windows":
+    try:
+        import winpty as _winpty
+    except ImportError:
+        pass
 
 _IS_WINDOWS = platform.system() == "Windows"
 
@@ -19,10 +30,17 @@ webshell_router = APIRouter()
 def _detect_shell() -> list[str]:
     system = platform.system()
     if system == "Windows":
-        powershell = "powershell.exe"
-        if os.path.exists(powershell):
-            return [powershell, "-NoLogo", "-NoProfile", "-NoExit"]
-        return ["cmd.exe"]
+        for name, args in [
+            ("powershell.exe", ["-NoLogo", "-NoProfile", "-NoExit"]),
+            ("pwsh.exe", ["-NoLogo", "-NoProfile", "-NoExit"]),
+        ]:
+            path = shutil.which(name)
+            if path:
+                return [path, *args]
+        cmd = shutil.which("cmd.exe")
+        if cmd:
+            return [cmd]
+        raise FileNotFoundError("No suitable shell found on PATH")
     elif system == "Darwin":
         for shell in ["/bin/zsh", "/bin/bash", "/bin/sh"]:
             if os.path.exists(shell):
@@ -60,40 +78,64 @@ async def shell_ws(websocket: WebSocket):
 
 async def _handle_windows(websocket: WebSocket):
     cmd = _detect_shell()
+    loop = asyncio.get_running_loop()
+    cols, rows = 80, 24
 
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-    except Exception:
-        await websocket.send_text("Failed to start shell")
-        await websocket.close(code=1011, reason="Shell spawn failed")
-        return
+    pty = None
+    proc = None
 
-    async def read_stdout():
+    if _winpty is not None:
+        try:
+            pty = _winpty.PTY(cols, rows)
+            pty.spawn(cmd[0], " ".join(cmd[1:]) if len(cmd) > 1 else None)
+        except Exception:
+            pty = None
+
+    if pty is None:
+        try:
+            creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            proc = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=creationflags,
+                bufsize=0,
+            )
+        except Exception as e:
+            await websocket.send_text(f"Failed to start shell: {type(e).__name__}: {e}")
+            await websocket.close(code=1011, reason="Shell spawn failed")
+            return
+
+    async def read_output():
         try:
             while True:
-                data = await proc.stdout.read(4096)
-                if not data:
-                    break
-                await websocket.send_bytes(data)
+                if pty:
+                    data = await loop.run_in_executor(None, pty.read, True)
+                    if not data:
+                        break
+                    await websocket.send_bytes(data.encode("utf-8", errors="replace"))
+                else:
+                    data = await loop.run_in_executor(None, proc.stdout.read, 4096)
+                    if not data:
+                        break
+                    await websocket.send_bytes(data)
         except Exception:
             pass
 
     async def read_stderr():
+        if proc is None:
+            return
         try:
             while True:
-                data = await proc.stderr.read(4096)
+                data = await loop.run_in_executor(None, proc.stderr.read, 4096)
                 if not data:
                     break
                 await websocket.send_bytes(data)
         except Exception:
             pass
 
-    stdout_task = asyncio.create_task(read_stdout())
+    output_task = asyncio.create_task(read_output())
     stderr_task = asyncio.create_task(read_stderr())
 
     try:
@@ -102,8 +144,11 @@ async def _handle_windows(websocket: WebSocket):
             if msg["type"] == "websocket.receive":
                 if "bytes" in msg:
                     try:
-                        proc.stdin.write(msg["bytes"])
-                        await proc.stdin.drain()
+                        if pty:
+                            await loop.run_in_executor(None, pty.write, msg["bytes"].decode("utf-8", errors="replace"))
+                        else:
+                            await loop.run_in_executor(None, proc.stdin.write, msg["bytes"])
+                            await loop.run_in_executor(None, proc.stdin.flush)
                     except Exception:
                         break
                 elif "text" in msg:
@@ -112,10 +157,22 @@ async def _handle_windows(websocket: WebSocket):
                         await websocket.close(code=1000, reason="Shell exited")
                         break
                     if data.startswith("\x1b["):
+                        if pty:
+                            try:
+                                parts = data[2:].rstrip("R").split(";")
+                                r = int(parts[0])
+                                c = int(parts[1])
+                                cols, rows = c, r
+                                await loop.run_in_executor(None, pty.set_size, c, r)
+                            except (ValueError, IndexError):
+                                pass
                         continue
                     try:
-                        proc.stdin.write(data.encode())
-                        await proc.stdin.drain()
+                        if pty:
+                            await loop.run_in_executor(None, pty.write, data)
+                        else:
+                            await loop.run_in_executor(None, proc.stdin.write, data.encode())
+                            await loop.run_in_executor(None, proc.stdin.flush)
                     except Exception:
                         break
             elif msg["type"] == "websocket.disconnect":
@@ -125,9 +182,14 @@ async def _handle_windows(websocket: WebSocket):
     except Exception:
         pass
     finally:
-        stdout_task.cancel()
+        output_task.cancel()
         stderr_task.cancel()
-        if proc.returncode is None:
+        if pty and pty.isalive():
+            try:
+                os.kill(pty.pid, signal.SIGTERM)
+            except OSError:
+                pass
+        elif proc and proc.poll() is None:
             proc.terminate()
 
 
