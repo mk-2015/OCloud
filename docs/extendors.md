@@ -21,6 +21,7 @@ Set a value to `true` to enable, `false` to disable. Changes take effect on serv
 | [fileshare](extendors/fileshare.md) | Create time-limited or permanent public links to files | [View](extendors/fileshare.md) |
 | [monitord](extendors/monitord.md) | Real-time system monitoring dashboard | [View](extendors/monitord.md) |
 | [webshell](extendors/webshell.md) | Browser-based terminal with WebSocket communication | [View](extendors/webshell.md) |
+| [iplocate](extendors/iplocate.md) | IP location without user-account | [View](extendors/iplocate.md)
 
 ## Creating an Extensor
 

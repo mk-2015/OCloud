@@ -135,7 +135,15 @@ if config.get("oworkspace", {}).get("use"):
     from modules.oworkspace import Rworkspace, init_oworkspace
     init_oworkspace()
     app.include_router(Rworkspace)
+
+if config["extendors"]["iplocate"]:
+    print("[Extendor] extendor \"iplocate\" is on.")
     
+    from modules.extend.iplocate import init_iplocate, iplocate_router
+    init_iplocate()
+    
+    app.include_router(iplocate_router)
+
 if config["extendors"]["fileshare"]:
     print("[Extendor] extendor \"fileshare\" is on.")
     

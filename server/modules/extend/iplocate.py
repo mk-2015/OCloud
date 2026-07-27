@@ -4,6 +4,9 @@ from modules.auth import require_session, WebSocketAuthException
 
 iplocate_router = APIRouter()
 
+def init_iplocate():
+    pass
+
 @iplocate_router.post("/api/locate/myip")
 async def getmyip(request: Request):    
     json = await request.json()

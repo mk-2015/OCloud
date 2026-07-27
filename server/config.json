@@ -20,7 +20,8 @@
 	{
 		"fileshare": true,
 		"monitord": true,
-		"webshell": true
+		"webshell": true,
+        "iplocate": false
 	},
 	"oworkspace": {
 		"use": true
