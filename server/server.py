@@ -123,13 +123,18 @@ class UploadSizeLimitMiddleware(BaseHTTPMiddleware):
 app.add_middleware(UploadSizeLimitMiddleware)
 app.include_router(omedia_router)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
-    print("[WARNING] Cube is experimental and in non-production form.")
     from modules.cube import cube_router, init_cube, _cleanup_expired_containers
     if config["cube"]["islocal"]:
         init_cube([])
     else:
         init_cube(config["cube"].get("workers", []), local=False)
     app.include_router(cube_router)
+
+if config.get("oworkspace", {}).get("use"):
+    print("[WARNING] oworkspace is experimental.")
+    from modules.oworkspace import Rworkspace, init_oworkspace
+    init_oworkspace()
+    app.include_router(Rworkspace)
     
 if config["extendors"]["fileshare"]:
     print("[Extendor] extendor \"fileshare\" is on.")
@@ -152,13 +157,6 @@ if config["extendors"]["webshell"]:
     
     from modules.extend.webshell import webshell_router
     app.include_router(webshell_router)
-
-if config.get("oworkspace", {}).get("use"):
-    print("[Section] oworkspace is on.")
-
-    from modules.oworkspace import Rworkspace, init_oworkspace
-    init_oworkspace()
-    app.include_router(Rworkspace)
 
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="static")
 

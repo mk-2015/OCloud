@@ -11,10 +11,12 @@ from modules.auth import require_session
 from modules.omedia import DABA, log_audit, validate_csrf
 
 import aiosqlite
+import path
+
 
 Rworkspace = APIRouter()
 
-WORKSPACE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "_workspace"
+WORKSPACE_DIR = Path(path.DATA).resolve() / "_workfiles"
 
 
 def _user_ws_dir(username: str) -> Path:
