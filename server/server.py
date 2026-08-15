@@ -15,7 +15,9 @@ from modules.admin import admin_backdoor
 from modules.auth import init_auth_config, _cleanup_sessions
 
 if len(sys.argv) >= 2 and sys.argv[1] == "init":
+    from modules.omail import init_moha_engine_db
     async def init_db():
+        await init_moha_engine_db()
         async with aiosqlite.connect(DABA) as db:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -135,8 +137,10 @@ if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"
 if config.get("oworkspace", {}).get("use"):
     print("[WARNING] oworkspace is experimental.")
     from modules.oworkspace import Rworkspace, init_oworkspace
+    from modules.omail import Mailer
     init_oworkspace()
     app.include_router(Rworkspace)
+    app.include_router(Mailer)
 
 if config["extendors"]["iplocate"]:
     print("[Extendor] extendor \"iplocate\" is on.")
@@ -171,6 +175,7 @@ if config["extendors"]["webshell"]:
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="static")
 
 if __name__ == "__main__":
+    reload = False
     try:
         host = config["host"] if "host" in config else "0.0.0.0"
         display_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
@@ -184,7 +189,7 @@ if __name__ == "__main__":
                 port=port,
                 ssl_certfile=config["ssl"].get("certfile", "./cert.pem"),
                 ssl_keyfile=config["ssl"].get("keyfile", "./key.pem"),
-                reload=True
+                reload=reload
             )
         else:
             print(f"SSL: None. visit: http://{display_host}:{port}")
@@ -192,7 +197,7 @@ if __name__ == "__main__":
                 "server:app",
                 host=host,
                 port=port,
-                reload=True
+                reload=reload
             )
 
     except KeyboardInterrupt:

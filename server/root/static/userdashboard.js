@@ -168,18 +168,24 @@ shareForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const user = await requireSession();
   if (!user) return;
+
   const filepath = sharePath.value.trim();
+  const name = shareName.value.trim() || 'share1';
+
   if (!filepath) {
     shareStatus.textContent = 'Enter a file path.';
     return;
   }
+
   shareStatus.textContent = 'Creating link...';
   shareResult.innerHTML = '';
+
   const response = await fetch('/api/fileshare/upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
-    body: JSON.stringify({ filepath, isforever: shareForever.checked }),
+    body: JSON.stringify({ name, filepath, isforever: shareForever.checked }),
   });
+
   const data = await response.json();
   if (response.ok) {
     const link = window.location.origin + data.URL;
@@ -190,10 +196,69 @@ shareForm.addEventListener('submit', async (event) => {
         <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('shareLink').value).then(() => this.textContent = 'Copied!')">Copy</button>
       </div>
     `;
+    loadShares();
   } else {
     shareStatus.textContent = data.Reason || 'Failed to create link.';
   }
 });
+
+async function loadShares() {
+  const user = await requireSession();
+  if (!user) return;
+
+  sharesList.textContent = 'Loading shares...';
+
+  try {
+    const response = await fetch('/api/fileshare/list');
+    const data = await response.json();
+
+    if (!response.ok || !data.shares) {
+      sharesList.textContent = 'Failed to load shares.';
+      return;
+    }
+
+    if (data.shares.length === 0) {
+      sharesList.textContent = 'No active shares found.';
+      return;
+    }
+
+    sharesList.innerHTML = data.shares.map(share => {
+      const fullUrl = window.location.origin + share.URL;
+      const safeName = escapeHTML(share.name || 'share1');
+      const safePath = escapeHTML(share.filepath);
+      const safeToken = escapeHTML(share.token);
+
+      return `
+        <div class="share-item" style="border: 1px solid #ccc; padding: 10px; margin-bottom: 8px; border-radius: 4px;">
+          <strong>${safeName}</strong> — <code>${safePath}</code><br>
+          <a href="${fullUrl}" target="_blank">${escapeHTML(fullUrl)}</a><br>
+          <button class="btn btn-danger btn-sm" onclick="deleteShare('${safeToken}')" style="margin-top: 5px;">Delete</button>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    sharesList.textContent = 'Error fetching shares.';
+  }
+}
+
+async function deleteShare(token) {
+  if (!confirm('Are you sure you want to delete this share link?')) return;
+
+  const response = await fetch(`/api/fileshare/delete/${token}`, {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': getCsrfToken() }
+  });
+
+  const data = await response.json();
+  if (response.ok && data.success) {
+    loadShares();
+  } else {
+    alert(data.Reason || 'Failed to delete share link.');
+  }
+}
+
+refreshShares.addEventListener('click', loadShares);
+document.addEventListener('DOMContentLoaded', loadShares);
 
 async function loadApiKeys() {
   const response = await fetch('/api/omedia/apikeys');

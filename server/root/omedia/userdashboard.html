@@ -42,20 +42,30 @@
                 <div id="fileList" class="file-list"></div>
             </section>
 			
-			<section class="panel">
-				<h2>Share</h2>
-				<div id="shareStatus" class="status"></div>
-				<form id="shareForm" class="upload-box">
-					<label for="sharePath">File path</label>
-					<input id="sharePath" placeholder="e.g. docs/note.html" />
-					<label class="checkbox-label">
-						<input id="shareForever" type="checkbox" />
-						Make link last forever
-					</label>
-					<button class="btn btn-primary" type="submit">Share</button>
-				</form>
-				<div id="shareResult" class="share-result"></div>
-			</section>
+            <section class="panel">
+                <h2>Share</h2>
+                <div id="shareStatus" class="status"></div>
+                <form id="shareForm" class="upload-box">
+                    <label for="shareName">Share Name</label>
+                    <input id="shareName" placeholder="e.g. My Document (defaults to share1)" />
+
+                    <label for="sharePath">File path</label>
+                    <input id="sharePath" placeholder="e.g. docs/note.html" required />
+
+                    <label class="checkbox-label">
+                        <input id="shareForever" type="checkbox" />
+                        Make link last forever
+                    </label>
+                    <button class="btn btn-primary" type="submit">Share</button>
+                </form>
+                <div id="shareResult" class="share-result"></div>
+
+                <hr style="margin: 20px 0;">
+
+                <h3>Your Active Shares</h3>
+                <button id="refreshShares" class="btn btn-secondary">Refresh List</button>
+                <div id="sharesList" class="shares-list" style="margin-top: 10px;"></div>
+            </section>
 
 			<section class="panel" style="grid-column: 1 / -1;">
 				<h2>API Keys</h2>

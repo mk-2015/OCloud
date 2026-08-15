@@ -12,4 +12,11 @@
 		Trying to fix ...
 
 # TODOS
-* None yet.
+- **Implementation**
+	- File:
+		- server/omail.py
+	- What?
+		* Implement UI
+		* Add Documentation
+	- Description
+		Adding documentation to omail for workspace and UI for it

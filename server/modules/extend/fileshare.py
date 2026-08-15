@@ -50,6 +50,55 @@ def testfileshare(request: Request):
     return {"Test": "Ok"}
 
 
+@Rfileshare.get("/api/fileshare/list")
+async def list_fileshares(request: Request):
+    session = require_session(request, required_role="user", ormore=True)
+    username = session["username"]
+
+    user_shares = [
+        {
+            "name": item["name"],
+            "filepath": item["filepath"],
+            "createdat": item["createdat"],
+            "lastfor": item["lastfor"],
+            "token": item["token"],
+            "URL": f"/fileshare/{item['token']}",
+        }
+        for item in copen_fsr
+        if item["owner"] == username
+    ]
+
+    return JSONResponse(status_code=200, content={"shares": user_shares})
+
+
+@Rfileshare.post("/api/fileshare/delete/{token}")
+async def delete_fileshare(request: Request, token: str):
+    validate_csrf(request)
+    session = require_session(request, required_role="user", ormore=True)
+    username = session["username"]
+
+    global copen_fsr
+    target = next((item for item in copen_fsr if item["token"] == token), None)
+
+    if not target:
+        return JSONResponse(
+            status_code=404,
+            content={"success": False, "Reason": "Share token not found"},
+        )
+
+    if target["owner"] != username:
+        return JSONResponse(
+            status_code=403,
+            content={"success": False, "Reason": "Permission denied"},
+        )
+
+    copen_fsr.remove(target)
+    return JSONResponse(
+        status_code=200,
+        content={"success": True, "message": "Share deleted successfully"},
+    )
+
+
 @Rfileshare.post("/api/fileshare/upload")
 async def generate_fileshare_token(request: Request):
     validate_csrf(request)
@@ -63,6 +112,7 @@ async def generate_fileshare_token(request: Request):
         )
 
     filepath = body["filepath"]
+    share_name = body.get("name", "share1")
     username = session["username"]
 
     try:
@@ -83,6 +133,7 @@ async def generate_fileshare_token(request: Request):
 
     copen_fsr.append(
         {
+            "name": share_name,
             "owner": username,
             "filepath": filepath,
             "lastfor": lastfor,
@@ -94,6 +145,7 @@ async def generate_fileshare_token(request: Request):
     return JSONResponse(
         status_code=201,
         content={
+            "name": share_name,
             "URL": f"/fileshare/{token}",
             "filepath": filepath,
             "rawtoken": token,
@@ -144,6 +196,7 @@ async def get_file(request: Request, token: str):
 
     owner = cfsr["owner"]
     filepath = cfsr["filepath"]
+    share_name = cfsr.get("name", "share1")
     filename = Path(filepath).name
 
     try:
@@ -174,9 +227,10 @@ async def get_file(request: Request, token: str):
     safe_filename = html.escape(filename)
     safe_owner = html.escape(owner)
     safe_content = html.escape(content)
+    safe_share_name = html.escape(share_name)
 
     return HTMLResponse(
-        content=f"<h1>File Contents</h1><br>\n"
+        content=f"<h1>{safe_share_name}</h1><br>\n"
         f"<p>\n"
         f"Filename: {safe_filename}<br>\n"
         f"Owner: {safe_owner}<br>\n"
