@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMail</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/omail.css">
+    <script src="/static/utils.js"></script>
+</head>
+<body>
+    <div class="omail-container">
+        <!-- Sidebar Navigation -->
+        <div class="omail-sidebar">
+            <button class="btn-compose" onclick="openCompose()">
+                <span style="font-size: 18px;">✏</span> Compose
+            </button>
+            <div class="sidebar-item active" id="nav-inbox" onclick="switchFolder('label:INBOX', this)">
+                <span>📥</span> Inbox
+            </div>
+            <div class="sidebar-item" id="nav-starred" onclick="switchFolder('label:STARRED', this)">
+                <span>⭐</span> Starred
+            </div>
+            <div class="sidebar-item" id="nav-sent" onclick="switchFolder('label:SENT', this)">
+                <span>📤</span> Sent
+            </div>
+            <div style="padding: 10px 16px; font-weight: 600; font-size: 12px; color: #808080;">Labels</div>
+            <div id="labelList"></div>
+            <div style="padding: 10px 16px;">
+                <input type="text" id="newLabelName" placeholder="New label name" style="width: 100%; padding: 5px; border-radius: 4px; border: 1px solid var(--border-color, #2a2a2a); background: var(--bg-card, #1e1e1e); color: #fff;">
+                <button class="btn btn-secondary" onclick="createLabel()" style="width: 100%; margin-top: 5px; padding: 5px;">Create</button>
+            </div>
+        </div>
+
+        <!-- Main Thread Section -->
+        <div class="omail-main">
+            <div class="omail-header">
+                <input type="text" id="searchInput" placeholder="Search mail..." onkeypress="handleSearch(event)">
+            </div>
+            <div id="threadList" class="thread-list"></div>
+        </div>
+
+        <!-- Mail View Panel -->
+        <div class="mail-viewer" id="mailViewer">
+            <div class="empty-state">
+                <h3>Select an email to read</h3>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Compose Window -->
+    <div id="composeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>New Message</span>
+                <button class="close-btn" onclick="closeCompose()">&times;</button>
+            </div>
+            <input type="text" id="to" placeholder="To" class="compose-input">
+            <input type="text" id="subject" placeholder="Subject" class="compose-input">
+            
+            <div class="editor-toolbar">
+                <button onclick="formatText('bold')"><b>B</b></button>
+                <button onclick="formatText('italic')"><i>I</i></button>
+                <button onclick="formatText('underline')"><u>U</u></button>
+                <button onclick="formatText('insertUnorderedList')">• List</button>
+                <button onclick="formatText('insertOrderedList')">1. List</button>
+                <button onclick="createLink()">Link</button>
+                <button onclick="document.getElementById('fileInput').click()">📎 Attach</button>
+                <input type="file" id="fileInput" style="display:none" multiple onchange="handleFileSelection(event)">
+            </div>
+            <div id="attachmentList" style="padding: 5px; font-size: 0.8rem; color: var(--text-secondary);"></div>
+
+            <div id="body" class="editor-area" contenteditable="true"></div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                <button class="btn btn-secondary" onclick="closeCompose()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentLabel = 'label:INBOX';
+        let selectedFiles = [];
+        let currentThreadData = null;
+
+        function getCsrf() {
+            return typeof getCsrfToken === 'function' ? getCsrfToken() : '';
+        }
+
+        function formatText(command) {
+            document.execCommand(command, false, null);
+        }
+
+        function createLink() {
+            const editor = document.getElementById('body');
+            const selection = window.getSelection();
+            
+            if (selection.rangeCount === 0 || selection.toString().length === 0) {
+                alert('Please highlight the text you want to turn into a link first.');
+                return;
+            }
+            
+            editor.focus();
+            const url = prompt('Enter the URL for the selected text:');
+            if (url) {
+                document.execCommand('createLink', false, url);
+                const link = selection.anchorNode.parentElement;
+                if (link && link.tagName === 'A') {
+                    link.target = '_blank';
+                }
+            }
+        }
+
+        function openCompose() {
+            document.getElementById('composeModal').style.display = 'block';
+        }
+
+        function closeCompose() {
+            document.getElementById('composeModal').style.display = 'none';
+            selectedFiles = [];
+            updateAttachmentUI();
+        }
+
+        function switchFolder(label, el) {
+            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('searchInput').value = '';
+            loadThreads(label);
+        }
+
+        function handleSearch(e) {
+            if (e.key === 'Enter') {
+                loadThreads(currentLabel);
+            }
+        }
+
+        async function loadThreads(label = currentLabel) {
+            currentLabel = label;
+            const list = document.getElementById('threadList');
+            const search = document.getElementById('searchInput').value;
+            list.innerHTML = '<div class="loading">Loading messages...</div>';
+            
+            const q = search ? `${label} ${search}` : label;
+            try {
+                const res = await fetch(`/api/mail/threads?q=${encodeURIComponent(q)}`);
+                const data = await res.json();
+                
+                list.innerHTML = '';
+                if (!data.threads || data.threads.length === 0) {
+                    list.innerHTML = '<div class="empty-state">No messages found</div>';
+                    return;
+                }
+
+                data.threads.forEach(t => {
+                    const item = document.createElement('div');
+                    item.className = 'thread-item';
+                    const isStarred = t.labels && t.labels.includes('STARRED');
+                    
+                    item.innerHTML = `
+                        <span class="star ${isStarred ? 'starred' : ''}" onclick="toggleStar(event, '${t.id}', ${isStarred})">★</span>
+                        <div class="thread-info">
+                            <div class="thread-subject">${t.subject || '(No Subject)'}</div>
+                            <div class="thread-snippet">${t.snippet || ''}</div>
+                        </div>
+                        <small class="thread-date">${new Date((t.last_message_timestamp || 0) * 1000).toLocaleDateString()}</small>
+                    `;
+                    
+                    item.onclick = (e) => {
+                        if (e.target.classList.contains('star')) return;
+                        document.querySelectorAll('.thread-item').forEach(el => el.classList.remove('active'));
+                        item.classList.add('active');
+                        loadThread(t.id);
+                    };
+                    list.appendChild(item);
+                });
+            } catch (err) {
+                list.innerHTML = '<div class="empty-state">Failed to load emails</div>';
+            }
+        }
+
+        async function loadThread(id) {
+            const viewer = document.getElementById('mailViewer');
+            viewer.innerHTML = '<div class="loading">Loading conversation...</div>';
+            
+            try {
+                const res = await fetch(`/api/mail/threads/${id}`);
+                const data = await res.json();
+                
+                if (!res.ok || !data.messages) {
+                    viewer.innerHTML = '<div class="empty-state">Failed to load conversation details</div>';
+                    return;
+                }
+
+                currentThreadData = data;
+                const firstMsgId = data.messages[0]?.id || '';
+
+                viewer.innerHTML = `
+                    <div style="padding: 10px; border-bottom: 1px solid var(--border-color, #2a2a2a); display: flex; gap: 10px; margin-bottom: 15px;">
+                        <button class="btn btn-secondary" onclick="replyMessage()">Reply</button>
+                        <button class="btn btn-secondary" onclick="forwardMessage()">Forward</button>
+                        <button class="btn btn-secondary" onclick="toggleReadStatus('${firstMsgId}')">Toggle Read</button>
+                        <button class="btn btn-secondary" onclick="trashThread('${id}')">Trash</button>
+                    </div>
+                    <h2 class="viewer-subject">${data.subject || '(No Subject)'}</h2>
+                `;
+
+                data.messages.forEach(m => {
+                    let attachmentsHtml = '';
+                    if (m.attachments && m.attachments.length > 0) {
+                        attachmentsHtml = '<div style="margin-top: 10px; border-top: 1px solid var(--border-color, #2a2a2a); padding-top: 10px;"><strong>Attachments:</strong><br>';
+                        m.attachments.forEach(a => {
+                            attachmentsHtml += `<a href="/api/mail/attachments/${a.id}" target="_blank" style="display: block; color: var(--accent-cyan); text-decoration: none; margin-top: 5px;">📎 ${a.filename} (${(a.size_bytes / 1024).toFixed(1)} KB)</a>`;
+                        });
+                        attachmentsHtml += '</div>';
+                    }
+                    viewer.innerHTML += `
+                        <div class="mail-message">
+                            <div class="mail-header">
+                                <div><strong>From:</strong> ${m.sender || ''}</div>
+                                <div><strong>To:</strong> ${m.recipient || ''}</div>
+                                <small>${new Date((m.timestamp || 0) * 1000).toLocaleString()}</small>
+                            </div>
+                            <div class="mail-body">${m.body_html || m.body_plain || ''}</div>
+                            ${attachmentsHtml}
+                        </div>`;
+                });
+            } catch (err) {
+                viewer.innerHTML = '<div class="empty-state">Failed to load conversation</div>';
+            }
+        }
+
+        async function toggleReadStatus(messageId) {
+            if (!messageId) return;
+            try {
+                await fetch('/api/mail/batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrf()
+                    },
+                    body: JSON.stringify({
+                        message_ids: [messageId],
+                        remove_labels: ['UNREAD']
+                    })
+                });
+                loadThreads();
+            } catch (err) {
+                console.error('Failed to update read status', err);
+            }
+        }
+
+        async function toggleStar(event, threadId, currentlyStarred) {
+            event.stopPropagation();
+            try {
+                await fetch('/api/mail/batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrf()
+                    },
+                    body: JSON.stringify({
+                        thread_ids: [threadId],
+                        add_labels: currentlyStarred ? [] : ['STARRED'],
+                        remove_labels: currentlyStarred ? ['STARRED'] : []
+                    })
+                });
+                loadThreads();
+            } catch (err) {
+                console.error('Failed to update star state', err);
+            }
+        }
+
+        function handleFileSelection(event) {
+            const files = Array.from(event.target.files);
+            selectedFiles = [...selectedFiles, ...files];
+            updateAttachmentUI();
+        }
+
+        function updateAttachmentUI() {
+            const list = document.getElementById('attachmentList');
+            list.innerHTML = selectedFiles.map((f, i) => `
+                <div>${f.name} <button onclick="removeAttachment(${i})" style="border:none; background:none; color:red; cursor:pointer;">&times;</button></div>
+            `).join('');
+        }
+
+        function removeAttachment(index) {
+            selectedFiles.splice(index, 1);
+            updateAttachmentUI();
+        }
+
+        async function getFileBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function sendMessage() {
+            const to = document.getElementById('to').value;
+            const subject = document.getElementById('subject').value;
+            const body = document.getElementById('body').innerHTML;
+            
+            const attachments = await Promise.all(selectedFiles.map(async f => ({
+                filename: f.name,
+                mime_type: f.type,
+                data: await getFileBase64(f)
+            })));
+
+            const res = await fetch('/api/mail/messages/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': getCsrf()
+                },
+                body: JSON.stringify({to, subject, body_html: body, body_plain: body.replace(/<[^>]*>?/gm, ''), attachments})
+            });
+            
+            if (res.ok) {
+                closeCompose();
+                document.getElementById('to').value = '';
+                document.getElementById('subject').value = '';
+                document.getElementById('body').innerHTML = '';
+                selectedFiles = [];
+                updateAttachmentUI();
+                loadThreads();
+            } else {
+                alert('Failed to send message.');
+            }
+        }
+
+        async function loadLabels() {
+            try {
+                const res = await fetch('/api/mail/labels');
+                const labels = await res.json();
+                const list = document.getElementById('labelList');
+                if (Array.isArray(labels)) {
+                    list.innerHTML = labels.map(l => `
+                        <div class="sidebar-item" onclick="switchFolder('label:${l.name.toUpperCase()}', this)">
+                            <span>🏷</span> ${l.name}
+                        </div>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error('Failed to load labels', err);
+            }
+        }
+
+        async function createLabel() {
+            const name = document.getElementById('newLabelName').value;
+            if (!name) return;
+            await fetch('/api/mail/labels', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': getCsrf()
+                },
+                body: JSON.stringify({name})
+            });
+            document.getElementById('newLabelName').value = '';
+            loadLabels();
+        }
+
+        async function trashThread(threadId) {
+            try {
+                let messageIds = [];
+                if (currentThreadData && currentThreadData.messages) {
+                    messageIds = currentThreadData.messages.map(m => m.id);
+                } else {
+                    const res = await fetch(`/api/mail/threads/${threadId}`);
+                    const data = await res.json();
+                    messageIds = (data.messages || []).map(m => m.id);
+                }
+
+                if (messageIds.length === 0) {
+                    alert('Could not resolve messages to trash.');
+                    return;
+                }
+                
+                await fetch('/api/mail/batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrf()
+                    },
+                    body: JSON.stringify({
+                        message_ids: messageIds,
+                        add_labels: ['TRASH'],
+                        remove_labels: ['INBOX']
+                    })
+                });
+                loadThreads();
+                document.getElementById('mailViewer').innerHTML = '<div class="empty-state">Thread moved to trash</div>';
+            } catch (err) {
+                console.error('Failed to trash thread', err);
+            }
+        }
+
+        function replyMessage() {
+            if (!currentThreadData || !currentThreadData.messages) return;
+            const lastMsg = currentThreadData.messages[currentThreadData.messages.length - 1];
+            openCompose();
+            document.getElementById('to').value = lastMsg.sender || '';
+            document.getElementById('subject').value = `Re: ${currentThreadData.subject || ''}`;
+        }
+
+        function forwardMessage() {
+            if (!currentThreadData || !currentThreadData.messages) return;
+            const lastMsg = currentThreadData.messages[currentThreadData.messages.length - 1];
+            openCompose();
+            document.getElementById('to').value = '';
+            document.getElementById('subject').value = `Fwd: ${currentThreadData.subject || ''}`;
+            document.getElementById('body').innerHTML = `<br><br>---------- Forwarded message ---------<br>From: ${lastMsg.sender}<br>Body: ${lastMsg.body_html || lastMsg.body_plain}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadThreads();
+            loadLabels();
+        });
+    </script>
+</body>
+</html>

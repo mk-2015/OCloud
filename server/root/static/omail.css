@@ -1,0 +1,257 @@
+/* Modern Dark Gmail Layout */
+
+.omail-container {
+    display: flex;
+    height: 100vh;
+    background-color: var(--bg-main, #121212);
+    color: var(--text-primary, #e0e0e0);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Sidebar */
+.omail-sidebar {
+    width: 240px;
+    border-right: 1px solid var(--border-color, #2a2a2a);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.btn-compose {
+    background: #c2e7ff;
+    color: #001d35;
+    border: none;
+    padding: 16px 24px;
+    border-radius: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    transition: box-shadow 0.2s;
+}
+
+.btn-compose:hover {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.sidebar-item {
+    padding: 10px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+}
+
+.sidebar-item:hover {
+    background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+.sidebar-item.active {
+    background: #004a77;
+    color: #c2e7ff;
+    font-weight: 600;
+}
+
+/* Main Feed */
+.omail-main {
+    width: 400px;
+    border-right: 1px solid var(--border-color, #2a2a2a);
+    display: flex;
+    flex-direction: column;
+}
+
+.omail-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color, #2a2a2a);
+}
+
+#searchInput {
+    width: 100%;
+    padding: 10px 16px;
+    border-radius: 24px;
+    border: none;
+    background: var(--bg-card, #1e1e1e);
+    color: var(--text-primary, #ffffff);
+    outline: none;
+}
+
+/* Thread List */
+.thread-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.thread-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color, #2a2a2a);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.thread-item:hover {
+    background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+}
+
+.thread-item.active {
+    background: var(--bg-selected, rgba(255, 255, 255, 0.1));
+}
+
+.star {
+    cursor: pointer;
+    color: #757575;
+    font-size: 16px;
+}
+
+.star.starred {
+    color: #f4b400;
+}
+
+.thread-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.thread-subject {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.thread-snippet {
+    font-size: 12px;
+    color: #a0a0a0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.thread-date {
+    font-size: 11px;
+    color: #808080;
+}
+
+/* Reader View */
+.mail-viewer {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.viewer-subject {
+    margin-top: 0;
+    font-weight: 400;
+}
+
+.mail-message {
+    border: 1px solid var(--border-color, #2a2a2a);
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    background: var(--bg-card, #1e1e1e);
+}
+
+.mail-header {
+    border-bottom: 1px solid var(--border-color, #2a2a2a);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.mail-body {
+    line-height: 1.5;
+}
+
+/* Floating Window Modal */
+.modal {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    right: 24px;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--bg-card, #1e1e1e);
+    width: 520px;
+    height: 480px;
+    border-radius: 12px 12px 0 0;
+    border: 1px solid var(--border-color, #2a2a2a);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    background: #2a2a2a;
+    padding: 10px 16px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.compose-input {
+    width: 100%;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-color, #2a2a2a);
+    color: #fff;
+    outline: none;
+}
+
+.editor-toolbar {
+    padding: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.editor-toolbar button {
+    background: transparent;
+    border: 1px solid var(--border-color, #3a3a3a);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.editor-area {
+    flex: 1;
+    padding: 12px;
+    outline: none;
+    overflow-y: auto;
+}
+
+.modal-footer {
+    padding: 12px;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.empty-state {
+    display: flex;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+}

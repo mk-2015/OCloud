@@ -1,20 +1,22 @@
 import base64
 import json
+import logging
 import os
 import re
+import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import aiosqlite
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from modules.auth import require_session
 from modules.omedia import DABA, log_audit, validate_csrf
 
-Mailer = APIRouter(prefix="/api/v1/mail", tags=["MOHA Gmail Engine"])
+Mailer = APIRouter(tags=["OMail Gmail Engine"])
 
 ATTACHMENT_STORAGE = Path("workspace/mail_storage/attachments")
 ATTACHMENT_STORAGE.mkdir(parents=True, exist_ok=True)
@@ -26,7 +28,6 @@ EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 async def init_moha_engine_db():
     async with aiosqlite.connect(DABA) as db:
         await db.execute("PRAGMA foreign_keys = ON;")
-
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS moha_threads (
@@ -39,13 +40,12 @@ async def init_moha_engine_db():
             )
             """
         )
-
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS moha_messages (
                 id TEXT PRIMARY KEY,
                 thread_id TEXT NOT NULL,
-                message_id_header TEXT UNIQUE NOT NULL,
+                message_id_header TEXT NOT NULL,
                 in_reply_to TEXT,
                 sender TEXT NOT NULL,
                 recipient TEXT NOT NULL,
@@ -61,7 +61,6 @@ async def init_moha_engine_db():
             )
             """
         )
-
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS moha_labels (
@@ -72,7 +71,6 @@ async def init_moha_engine_db():
             )
             """
         )
-
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS moha_message_labels (
@@ -84,7 +82,6 @@ async def init_moha_engine_db():
             )
             """
         )
-
         await db.execute(
             """
             CREATE TABLE IF NOT EXISTS moha_attachments (
@@ -99,7 +96,6 @@ async def init_moha_engine_db():
             )
             """
         )
-
         await db.execute(
             """
             CREATE VIRTUAL TABLE IF NOT EXISTS moha_fts USING fts5(
@@ -111,38 +107,19 @@ async def init_moha_engine_db():
             );
             """
         )
-
-        await db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_msg_thread ON moha_messages(thread_id);"
-        )
-        await db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_msg_timestamp ON moha_messages(timestamp);"
-        )
-        await db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_msg_sender ON moha_messages(sender);"
-        )
-        await db.execute(
-            "CREATE INDEX IF NOT EXISTS idx_msg_recipient ON moha_messages(recipient);"
-        )
-
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_msg_thread ON moha_messages(thread_id);")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_msg_timestamp ON moha_messages(timestamp);")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_msg_sender ON moha_messages(sender);")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_msg_recipient ON moha_messages(recipient);")
         await db.commit()
 
 
 def generate_rfc822_message_id(domain: str = "company.org") -> str:
-    return f"<{uuid.uuid4().hex}.moha@{domain}>"
+    return f"<{uuid.uuid4().hex}.{int(time.time() * 1000)}.moha@{domain}>"
 
 
 async def ensure_system_labels(db: aiosqlite.Connection, user_email: str):
-    system_labels = [
-        "INBOX",
-        "SENT",
-        "DRAFT",
-        "SPAM",
-        "TRASH",
-        "STARRED",
-        "UNREAD",
-        "IMPORTANT",
-    ]
+    system_labels = ["INBOX", "SENT", "DRAFT", "SPAM", "TRASH", "STARRED", "UNREAD", "IMPORTANT"]
     for label in system_labels:
         label_id = f"sys_{user_email}_{label.lower()}"
         await db.execute(
@@ -168,13 +145,14 @@ async def index_message_fts(
     )
 
 
-@Mailer.post("/messages/send")
+@Mailer.post("/api/mail/messages/send")
 async def send_message(request: Request, background_tasks: BackgroundTasks):
-    session = await require_session(request)
+    session = require_session(request)
     username = session.get("username")
     sender_email = f"{username}@company.org"
+    logging.info(f"Send message request from {sender_email}")
 
-    await validate_csrf(request)
+    validate_csrf(request)
     await init_moha_engine_db()
 
     payload = await request.json()
@@ -191,109 +169,78 @@ async def send_message(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Invalid primary recipient")
 
     now = time.time()
-    header_msg_id = generate_rfc822_message_id()
 
     async with aiosqlite.connect(DABA) as db:
         await ensure_system_labels(db, sender_email)
         await ensure_system_labels(db, recipient)
 
-        thread_id = None
-        if in_reply_to:
-            async with db.execute(
-                "SELECT thread_id FROM moha_messages WHERE message_id_header = ?",
-                (in_reply_to,),
-            ) as cursor:
-                row = await cursor.fetchone()
-                if row:
-                    thread_id = row[0]
+        while True:
+            header_msg_id = generate_rfc822_message_id()
+            thread_id = None
 
-        if not thread_id:
-            thread_id = f"thr_{uuid.uuid4().hex[:12]}"
-            snippet = body_plain[:100] if body_plain else "HTML Content"
-            await db.execute(
-                """
-                INSERT INTO moha_threads (id, user_email, subject, last_message_timestamp, snippet, message_count)
-                VALUES (?, ?, ?, ?, ?, 1)
-                """,
-                (thread_id, sender_email, subject, now, snippet),
-            )
-        else:
-            snippet = body_plain[:100] if body_plain else "HTML Content"
-            await db.execute(
-                """
-                UPDATE moha_threads 
-                SET last_message_timestamp = ?, snippet = ?, message_count = message_count + 1
-                WHERE id = ?
-                """,
-                (now, snippet, thread_id),
-            )
+            if in_reply_to:
+                async with db.execute(
+                    "SELECT thread_id FROM moha_messages WHERE message_id_header = ?",
+                    (in_reply_to,),
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    if row:
+                        thread_id = row[0]
 
-        msg_id_sender = f"msg_{uuid.uuid4().hex[:12]}"
-        msg_id_recipient = f"msg_{uuid.uuid4().hex[:12]}"
+            if not thread_id:
+                thread_id = f"thr_{uuid.uuid4().hex[:12]}"
+                snippet = body_plain[:100] if body_plain else "HTML Content"
+                await db.execute(
+                    """
+                    INSERT INTO moha_threads (id, user_email, subject, last_message_timestamp, snippet, message_count)
+                    VALUES (?, ?, ?, ?, ?, 1)
+                    """,
+                    (thread_id, sender_email, subject, now, snippet),
+                )
+            else:
+                snippet = body_plain[:100] if body_plain else "HTML Content"
+                await db.execute(
+                    """
+                    UPDATE moha_threads   
+                    SET last_message_timestamp = ?, snippet = ?, message_count = message_count + 1
+                    WHERE id = ?
+                    """,
+                    (now, snippet, thread_id),
+                )
 
-        total_size = len(body_plain.encode("utf-8")) + len(
-            body_html.encode("utf-8")
-        )
+            msg_id = f"msg_{uuid.uuid4().hex[:12]}"
+            total_size = len(body_plain.encode("utf-8")) + len(body_html.encode("utf-8"))
 
-        await db.execute(
-            """
-            INSERT INTO moha_messages (
-                id, thread_id, message_id_header, in_reply_to, sender, recipient, cc, bcc,
-                subject, body_plain, body_html, timestamp, is_draft, size_bytes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-            """,
-            (
-                msg_id_sender,
-                thread_id,
-                header_msg_id,
-                in_reply_to,
-                sender_email,
-                recipient,
-                cc,
-                bcc,
-                subject,
-                body_plain,
-                body_html,
-                now,
-                total_size,
-            ),
-        )
+            try:
+                await db.execute(
+                    """
+                    INSERT INTO moha_messages (
+                        id, thread_id, message_id_header, in_reply_to, sender, recipient, cc, bcc,
+                        subject, body_plain, body_html, timestamp, is_draft, size_bytes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                    """,
+                    (
+                        msg_id, thread_id, header_msg_id, in_reply_to, sender_email,
+                        recipient, cc, bcc, subject, body_plain, body_html, now, total_size
+                    ),
+                )
+                break
+            except sqlite3.IntegrityError as e:
+                logging.error(f"IntegrityError during message send: {e}")
+                continue
 
-        await db.execute(
-            """
-            INSERT INTO moha_messages (
-                id, thread_id, message_id_header, in_reply_to, sender, recipient, cc, bcc,
-                subject, body_plain, body_html, timestamp, is_draft, size_bytes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-            """,
-            (
-                msg_id_recipient,
-                thread_id,
-                header_msg_id,
-                in_reply_to,
-                sender_email,
-                recipient,
-                cc,
-                bcc,
-                subject,
-                body_plain,
-                body_html,
-                now,
-                total_size,
-            ),
-        )
-
+        # Attach labels
         await db.execute(
             "INSERT INTO moha_message_labels VALUES (?, ?)",
-            (msg_id_sender, f"sys_{sender_email}_sent"),
+            (msg_id, f"sys_{sender_email}_sent"),
         )
         await db.execute(
             "INSERT INTO moha_message_labels VALUES (?, ?)",
-            (msg_id_recipient, f"sys_{recipient}_inbox"),
+            (msg_id, f"sys_{recipient}_inbox"),
         )
         await db.execute(
             "INSERT INTO moha_message_labels VALUES (?, ?)",
-            (msg_id_recipient, f"sys_{recipient}_unread"),
+            (msg_id, f"sys_{recipient}_unread"),
         )
 
         for att in attachments:
@@ -314,45 +261,23 @@ async def send_message(request: Request, background_tasks: BackgroundTasks):
 
             size = len(content_bytes)
 
-            for target_msg_id in [msg_id_sender, msg_id_recipient]:
-                await db.execute(
-                    """
-                    INSERT INTO moha_attachments (id, message_id, filename, mime_type, file_path, size_bytes)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        f"att_{uuid.uuid4().hex[:10]}",
-                        target_msg_id,
-                        fname,
-                        mtype,
-                        str(file_disk_path),
-                        size,
-                    ),
-                )
+            await db.execute(
+                """
+                INSERT INTO moha_attachments (id, message_id, filename, mime_type, file_path, size_bytes)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (att_id, msg_id, fname, mtype, str(file_disk_path), size),
+            )
 
         await index_message_fts(
-            db,
-            msg_id_sender,
-            sender_email,
-            recipient,
-            subject,
-            f"{body_plain} {body_html}",
+            db, msg_id, sender_email, recipient, subject, f"{body_plain} {body_html}"
         )
-        await index_message_fts(
-            db,
-            msg_id_recipient,
-            sender_email,
-            recipient,
-            subject,
-            f"{body_plain} {body_html}",
-        )
-
         await db.commit()
 
     background_tasks.add_task(
         log_audit,
         action="moha_send_message",
-        details=f"From: {sender_email} | To: {recipient} | HeaderID: {header_msg_id}",
+        detail=f"From: {sender_email} | To: {recipient} | HeaderID: {header_msg_id}",
         ip=request.client.host if request.client else "127.0.0.1",
     )
 
@@ -360,30 +285,28 @@ async def send_message(request: Request, background_tasks: BackgroundTasks):
         status_code=200,
         content={
             "status": "success",
-            "message_id": msg_id_sender,
+            "message_id": msg_id,
             "thread_id": thread_id,
             "header_message_id": header_msg_id,
         },
     )
 
 
-@Mailer.get("/threads")
+@Mailer.get("/api/mail/threads")
 async def list_threads(
     request: Request,
     q: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    session = await require_session(request)
+    session = require_session(request)
     username = session.get("username")
     user_email = f"{username}@company.org"
     await init_moha_engine_db()
 
     target_label = "INBOX"
     fts_terms = []
-    from_filter = None
-    to_filter = None
-    subject_filter = None
+    from_filter, to_filter, subject_filter = None, None, None
 
     if q:
         tokens = q.split()
@@ -433,23 +356,40 @@ async def list_threads(
         async with db.execute(sql, params) as cursor:
             rows = await cursor.fetchall()
 
-        threads = [
-            {
-                "id": r[0],
+        threads = []
+        for r in rows:
+            thread_id = r[0]
+            async with db.execute(
+                """
+                SELECT DISTINCT l.name
+                FROM moha_labels l
+                JOIN moha_message_labels ml ON l.id = ml.label_id
+                JOIN moha_messages m ON ml.message_id = m.id
+                WHERE m.thread_id = ? AND l.user_email = ?
+                """,
+                (thread_id, user_email),
+            ) as l_cursor:
+                labels = [l_row[0] for l_row in await l_cursor.fetchall()]
+
+            threads.append({
+                "id": thread_id,
                 "subject": r[1],
                 "last_message_timestamp": r[2],
                 "snippet": r[3],
                 "message_count": r[4],
-            }
-            for r in rows
-        ]
+                "labels": labels,
+            })
 
-    return {"query": q or f"label:{target_label}", "count": len(threads), "threads": threads}
+    return {
+        "query": q or f"label:{target_label}",
+        "count": len(threads),
+        "threads": threads,
+    }
 
 
-@Mailer.get("/threads/{thread_id}")
+@Mailer.get("/api/mail/threads/{thread_id}")
 async def get_thread_details(thread_id: str, request: Request):
-    session = await require_session(request)
+    session = require_session(request)
     username = session.get("username")
     user_email = f"{username}@company.org"
     await init_moha_engine_db()
@@ -465,7 +405,7 @@ async def get_thread_details(thread_id: str, request: Request):
 
         async with db.execute(
             """
-            SELECT m.id, m.message_id_header, m.in_reply_to, m.sender, m.recipient, m.cc, 
+            SELECT m.id, m.message_id_header, m.in_reply_to, m.sender, m.recipient, m.cc,   
                    m.subject, m.body_plain, m.body_html, m.timestamp, m.is_draft
             FROM moha_messages m
             WHERE m.thread_id = ? AND (m.sender = ? OR m.recipient = ?)
@@ -501,93 +441,37 @@ async def get_thread_details(thread_id: str, request: Request):
                     "filename": a[1],
                     "mime_type": a[2],
                     "size_bytes": a[3],
-                    "download_url": f"/api/v1/mail/attachments/{a[0]}",
                 }
                 for a in att_rows
             ]
 
-            unread_label_id = f"sys_{user_email}_unread"
-            await db.execute(
-                "DELETE FROM moha_message_labels WHERE message_id = ? AND label_id = ?",
-                (msg_id, unread_label_id),
-            )
-
-            messages.append(
-                {
-                    "id": msg_id,
-                    "header_message_id": r[1],
-                    "in_reply_to": r[2],
-                    "sender": r[3],
-                    "recipient": r[4],
-                    "cc": r[5],
-                    "subject": r[6],
-                    "body_plain": r[7],
-                    "body_html": r[8],
-                    "timestamp": r[9],
-                    "is_draft": bool(r[10]),
-                    "labels": labels,
-                    "attachments": attachments,
-                }
-            )
-
-        await db.commit()
+            messages.append({
+                "id": msg_id,
+                "message_id_header": r[1],
+                "in_reply_to": r[2],
+                "sender": r[3],
+                "recipient": r[4],
+                "cc": r[5],
+                "subject": r[6],
+                "body_plain": r[7],
+                "body_html": r[8],
+                "timestamp": r[9],
+                "is_draft": bool(r[10]),
+                "labels": labels,
+                "attachments": attachments,
+            })
 
     return {
-        "thread_id": t_row[0],
+        "id": t_row[0],
         "subject": t_row[1],
-        "message_count": len(messages),
+        "last_message_timestamp": t_row[2],
         "messages": messages,
     }
 
 
-@Mailer.post("/batch")
-async def batch_modify_messages(request: Request):
-    session = await require_session(request)
-    username = session.get("username")
-    user_email = f"{username}@company.org"
-
-    await validate_csrf(request)
-    await init_moha_engine_db()
-
-    payload = await request.json()
-    msg_ids = payload.get("message_ids", [])
-    add_labels = payload.get("add_labels", [])
-    remove_labels = payload.get("remove_labels", [])
-
-    if not msg_ids:
-        raise HTTPException(status_code=400, detail="No message_ids provided")
-
-    async with aiosqlite.connect(DABA) as db:
-        await ensure_system_labels(db, user_email)
-
-        for msg_id in msg_ids:
-            for label_name in add_labels:
-                lbl_id = f"sys_{user_email}_{label_name.lower()}"
-                await db.execute(
-                    "INSERT OR IGNORE INTO moha_message_labels (message_id, label_id) VALUES (?, ?)",
-                    (msg_id, lbl_id),
-                )
-
-            for label_name in remove_labels:
-                lbl_id = f"sys_{user_email}_{label_name.lower()}"
-                await db.execute(
-                    "DELETE FROM moha_message_labels WHERE message_id = ? AND label_id = ?",
-                    (msg_id, lbl_id),
-                )
-
-        await db.commit()
-
-    return {
-        "status": "success",
-        "processed_count": len(msg_ids),
-        "added": add_labels,
-        "removed": remove_labels,
-    }
-
-
-@Mailer.get("/attachments/{attachment_id}")
-async def download_attachment_payload(attachment_id: str, request: Request):
-    session = await require_session(request)
+@Mailer.get("/api/mail/attachments/{attachment_id}")
+async def download_attachment(attachment_id: str, request: Request):
+    session = require_session(request)
     username = session.get("username")
     user_email = f"{username}@company.org"
 
@@ -596,7 +480,7 @@ async def download_attachment_payload(attachment_id: str, request: Request):
     async with aiosqlite.connect(DABA) as db:
         async with db.execute(
             """
-            SELECT a.filename, a.mime_type, a.file_path, a.size_bytes
+            SELECT a.filename, a.file_path, a.mime_type
             FROM moha_attachments a
             JOIN moha_messages m ON m.id = a.message_id
             WHERE a.id = ? AND (m.sender = ? OR m.recipient = ?)
@@ -606,22 +490,96 @@ async def download_attachment_payload(attachment_id: str, request: Request):
             row = await cursor.fetchone()
 
         if not row:
-            raise HTTPException(
-                status_code=404, detail="Attachment missing or restricted"
-            )
+            raise HTTPException(status_code=404, detail="Attachment not found")
 
-        filename, mime_type, file_path, size_bytes = row
+        filename, file_path, mime_type = row
+        return FileResponse(file_path, media_type=mime_type, filename=filename)
 
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="Disk asset not found")
 
-        with open(file_path, "rb") as f:
-            base64_encoded = base64.b64encode(f.read()).decode("utf-8")
+@Mailer.get("/api/mail/labels")
+async def list_labels(request: Request):
+    session = require_session(request)
+    username = session.get("username")
+    user_email = f"{username}@company.org"
 
-    return {
-        "id": attachment_id,
-        "filename": filename,
-        "mime_type": mime_type,
-        "size_bytes": size_bytes,
-        "base64_data": base64_encoded,
-    }   
+    async with aiosqlite.connect(DABA) as db:
+        async with db.execute(
+            "SELECT id, name FROM moha_labels WHERE user_email = ? AND type = 'user'",
+            (user_email,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [{"id": r[0], "name": r[1]} for r in rows]
+
+
+@Mailer.post("/api/mail/labels")
+async def create_label(request: Request):
+    session = require_session(request)
+    username = session.get("username")
+    user_email = f"{username}@company.org"
+
+    validate_csrf(request)
+    payload = await request.json()
+    name = payload.get("name")
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Label name is required")
+
+    label_id = f"usr_{user_email}_{name.lower()}"
+
+    async with aiosqlite.connect(DABA) as db:
+        await db.execute(
+            "INSERT OR IGNORE INTO moha_labels (id, user_email, name, type) VALUES (?, ?, ?, 'user')",
+            (label_id, user_email, name),
+        )
+        await db.commit()
+
+    return {"status": "success", "label_id": label_id}
+
+
+@Mailer.delete("/api/mail/labels/{label_id}")
+async def delete_label(label_id: str, request: Request):
+    session = require_session(request)
+    username = session.get("username")
+    user_email = f"{username}@company.org"
+
+    validate_csrf(request)
+
+    async with aiosqlite.connect(DABA) as db:
+        await db.execute(
+            "DELETE FROM moha_labels WHERE id = ? AND user_email = ? AND type = 'user'",
+            (label_id, user_email),
+        )
+        await db.commit()
+
+    return {"status": "success"}
+
+
+@Mailer.post("/api/mail/batch")
+async def batch_update_labels(request: Request):
+    session = require_session(request)
+    username = session.get("username")
+    user_email = f"{username}@company.org"
+
+    validate_csrf(request)
+    payload = await request.json()
+    message_ids = payload.get("message_ids", [])
+    add_labels = payload.get("add_labels", [])
+    remove_labels = payload.get("remove_labels", [])
+
+    async with aiosqlite.connect(DABA) as db:
+        for msg_id in message_ids:
+            for lbl in add_labels:
+                lbl_id = f"sys_{user_email}_{lbl.lower()}"
+                await db.execute(
+                    "INSERT OR IGNORE INTO moha_message_labels VALUES (?, ?)",
+                    (msg_id, lbl_id),
+                )
+            for lbl in remove_labels:
+                lbl_id = f"sys_{user_email}_{lbl.lower()}"
+                await db.execute(
+                    "DELETE FROM moha_message_labels WHERE message_id = ? AND label_id = ?",
+                    (msg_id, lbl_id),
+                )
+        await db.commit()
+
+    return {"status": "success"}

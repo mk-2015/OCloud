@@ -16,6 +16,7 @@ from modules.auth import init_auth_config, _cleanup_sessions
 
 if len(sys.argv) >= 2 and sys.argv[1] == "init":
     from modules.omail import init_moha_engine_db
+
     async def init_db():
         await init_moha_engine_db()
         async with aiosqlite.connect(DABA) as db:
@@ -52,7 +53,10 @@ if len(sys.argv) >= 2 and sys.argv[1] == "init":
         for user_dir in [DATA / "demo", DATA / "guest"]:
             user_dir.mkdir(exist_ok=True)
             (user_dir / "docs").mkdir(exist_ok=True)
-            (user_dir / "docs" / "welcome.html").write_text("<h1>Welcome</h1>", encoding="utf-8")
+            (user_dir / "docs" / "welcome.html").write_text(
+                "<h1>Welcome</h1>", encoding="utf-8"
+            )
+
     asyncio.run(init_db())
     print("Database initialized.")
     sys.exit(0)
@@ -70,6 +74,7 @@ init_auth_config(config)
 
 from contextlib import asynccontextmanager
 
+
 @asynccontextmanager
 async def lifespan(app):
     asyncio.create_task(_cleanup_sessions())
@@ -77,10 +82,13 @@ async def lifespan(app):
         asyncio.create_task(_cleanup_expired_containers())
     if config.get("extendors", {}).get("fileshare"):
         from modules.extend.fileshare import task_expiry
+
         asyncio.create_task(task_expiry())
     yield
 
+
 app = FastAPI(lifespan=lifespan)
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -90,15 +98,21 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         if request.url.scheme == "https":
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
         return response
+
 
 class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith("/static/") or request.url.path.endswith(".html"):
+        if request.url.path.startswith("/static/") or request.url.path.endswith(
+            ".html"
+        ):
             response.headers["Cache-Control"] = "no-store"
         return response
+
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(NoCacheMiddleware)
@@ -112,6 +126,7 @@ app.add_middleware(
 
 MAX_UPLOAD_BYTES = config.get("max_upload_mb", 1024) * 1024 * 1024
 
+
 class UploadSizeLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.url.path.startswith("/api/omedia/upload"):
@@ -123,11 +138,13 @@ class UploadSizeLimitMiddleware(BaseHTTPMiddleware):
                 )
         return await call_next(request)
 
+
 app.add_middleware(UploadSizeLimitMiddleware)
 app.include_router(omedia_router)
 app.include_router(admin_backdoor)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
     from modules.cube import cube_router, init_cube, _cleanup_expired_containers
+
     if config["cube"]["islocal"]:
         init_cube([])
     else:
@@ -138,44 +155,49 @@ if config.get("oworkspace", {}).get("use"):
     print("[WARNING] oworkspace is experimental.")
     from modules.oworkspace import Rworkspace, init_oworkspace
     from modules.omail import Mailer
+
     init_oworkspace()
     app.include_router(Rworkspace)
     app.include_router(Mailer)
 
 if config["extendors"]["iplocate"]:
-    print("[Extendor] extendor \"iplocate\" is on.")
-    
+    print('[Extendor] extendor "iplocate" is on.')
+
     from modules.extend.iplocate import init_iplocate, iplocate_router
+
     init_iplocate()
-    
+
     app.include_router(iplocate_router)
 
 if config["extendors"]["fileshare"]:
-    print("[Extendor] extendor \"fileshare\" is on.")
-    
+    print('[Extendor] extendor "fileshare" is on.')
+
     from modules.extend.fileshare import init_fileshare, Rfileshare
+
     init_fileshare()
-    
+
     app.include_router(Rfileshare)
-    
+
 if config["extendors"]["monitord"]:
-    print("[Extendor] extendor \"monitord\" is on.")
-    
+    print('[Extendor] extendor "monitord" is on.')
+
     from modules.extend.monitord import init_monitord, monitord
+
     init_monitord()
-    
+
     app.include_router(monitord)
 
 if config["extendors"]["webshell"]:
-    print("[Extendor] extendor \"webshell\" is on.")
-    
+    print('[Extendor] extendor "webshell" is on.')
+
     from modules.extend.webshell import webshell_router
+
     app.include_router(webshell_router)
 
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="static")
 
 if __name__ == "__main__":
-    reload = False
+    reload = True
     try:
         host = config["host"] if "host" in config else "0.0.0.0"
         display_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host
@@ -189,16 +211,11 @@ if __name__ == "__main__":
                 port=port,
                 ssl_certfile=config["ssl"].get("certfile", "./cert.pem"),
                 ssl_keyfile=config["ssl"].get("keyfile", "./key.pem"),
-                reload=reload
+                reload=reload,
             )
         else:
             print(f"SSL: None. visit: http://{display_host}:{port}")
-            uvicorn.run(
-                "server:app",
-                host=host,
-                port=port,
-                reload=reload
-            )
+            uvicorn.run("server:app", host=host, port=port, reload=reload)
 
     except KeyboardInterrupt:
         print("Server stopped by user")
