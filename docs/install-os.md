@@ -62,3 +62,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable ocloud.service
 sudo reboot
 ```
+
+# > [!NOTE]
+>
+> # If your computer catches fire while installing, please don't open a GitHub issue
