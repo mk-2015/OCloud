@@ -15,8 +15,8 @@ sudo pacman -S git python docker python-pip
 
 sudo systemctl enable --now docker
 
-git clone https://github.com ~/OCloud
-cd ~/OCloud
+git clone https://github.com/mk-2015/OCloud.git /root/OCloud
+cd /root/ocloud
 
 python -m venv .mvenv
 source .mvenv/bin/activate
