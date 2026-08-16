@@ -39,6 +39,7 @@ Edit `server/config.json` before starting. See [Configuration Reference](docs/co
 - [Cube](docs/cube.md)
 - [Extensors](docs/extendors.md)
 - [API Reference](docs/api.md)
+- [Custom OS For OCloud Homelab](./docs/install-os.md)
 
 ## License
 
