@@ -10,7 +10,7 @@ import sys
 import asyncio
 import os
 import atexit
-from modules.omedia import omedia_router
+from modules.omedia import omedia_router, init_omedia
 from modules.admin import admin_backdoor
 from modules.auth import init_auth_config, _cleanup_sessions
 
@@ -140,6 +140,7 @@ class UploadSizeLimitMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(UploadSizeLimitMiddleware)
+init_omedia(config.get("admin_password", "admin"))
 app.include_router(omedia_router)
 app.include_router(admin_backdoor)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
@@ -154,8 +155,11 @@ if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"
 if config.get("oworkspace", {}).get("use"):
     print("[WARNING] oworkspace is experimental.")
     from modules.oworkspace import Rworkspace, init_oworkspace
-    from modules.omail import Mailer
+    from modules.omail import Mailer, init_omail
 
+    init_omail(
+        config.get("oworkspace", {}).get("omail").get("domain", "opencloud.local")
+    )
     init_oworkspace()
     app.include_router(Rworkspace)
     app.include_router(Mailer)

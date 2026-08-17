@@ -7,21 +7,30 @@ All runtime settings live in `server/config.json`.
 ```json
 {
     "host": "0.0.0.0",
-    "port": 80,
+    "port": 443,
     "cube": {
         "use": false,
         "islocal": true,
         "workers": ["tcp://localhost:2350"]
     },
     "ssl": {
-        "use": false,
+        "use": true,
         "keyfile": "./key.pem",
         "certfile": "./cert.pem"
     },
     "extendors": {
-        "fileshare": true
+        "fileshare": true,
+        "monitord": true,
+        "webshell": true,
+        "iplocate": true
     },
-    "admin_password": "admin"
+    "oworkspace": {
+        "use": true,
+        "omail": {
+            "domain": "opencloud.local"
+        }
+    },
+    "max_upload_mb": 1024
 }
 ```
 
@@ -31,6 +40,7 @@ All runtime settings live in `server/config.json`.
 |-------|------|-------------|
 | `host` | string | Bind address. Use `0.0.0.0` for all interfaces. |
 | `port` | int | Listening port. |
+| `max_upload_mb` | int | Maximum upload size in megabytes. |
 | `admin_password` | string | Password for the built-in admin account. |
 
 ### `ssl`
@@ -49,11 +59,21 @@ All runtime settings live in `server/config.json`.
 | `islocal` | bool | Run lambdas locally (ignores `workers`). |
 | `workers` | string[] | Remote worker addresses (e.g. `tcp://host:port`). |
 
+### `oworkspace`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `use` | bool | Enable OWorkspace. |
+| `omail.domain` | string | Domain name for OMail. Defaults to `opencloud.local`. |
+
 ### `extendors`
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `fileshare` | bool | Enable the file sharing extendor. |
+| `monitord` | bool | Enable the monitor dashboard. |
+| `webshell` | bool | Enable the web terminal. |
+| `iplocate` | bool | Enable IP location service. |
 
 ## Firewall
 

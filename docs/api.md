@@ -22,6 +22,15 @@ Returns a JSON response and sets the `csrf_token` cookie. Call this before any s
 | GET | `/api/me` | Session | No | Current user info |
 | POST | `/api/del_user` | None | Yes | Self-service account deletion |
 
+### Admin Backdoor
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/admin/api/test` | None | Health check |
+| POST | `/admin/api/login` | None | Admin login, returns SToken |
+| POST | `/admin/api/logout` | SToken | Logout |
+| GET | `/admin/api/list-all-users` | SToken | List all users |
+
 ### Rate Limiting
 
 Login attempts are rate-limited per IP. After 3 failed attempts, the IP is locked out for 150 seconds. Each additional 3 failures increases the lockout by 150 seconds. The `retry_after` field in the error response indicates seconds remaining.
@@ -57,6 +66,16 @@ Requires admin role.
 | GET | `/api/omedia/admin/users` | No | List all users |
 | GET | `/api/omedia/admin/files/{username}` | No | Browse any user's files |
 | DELETE | `/api/admin/users/{username}` | Yes | Delete a user account |
+| GET | `/api/omedia/admin/audit` | No | List audit logs |
+| POST | `/api/omedia/admin/backup` | No | Download system backup |
+
+### API Key Management
+
+| Method | Endpoint | CSRF | Description |
+|--------|----------|------|-------------|
+| POST | `/api/omedia/apikeys` | Yes | Create API key |
+| GET | `/api/omedia/apikeys` | No | List API keys |
+| DELETE | `/api/omedia/apikeys/{key_id}` | Yes | Delete API key |
 
 ## File Sharing
 
@@ -128,3 +147,27 @@ Requires Cube to be enabled in config.
 | DELETE | `/api/cube/lambda/shutdown/{lmdid}` | User | Yes | Shutdown a lambda |
 | POST | `/api/cube/lamblets/exec` | User | Yes | Execute a command |
 | WS | `/api/cube/lamblets/{lambda_id}/shell` | User | No | Interactive shell |
+
+## OMail
+
+| Method | Endpoint | Auth | CSRF | Description |
+|--------|----------|------|------|-------------|
+| POST | `/api/mail/messages/send` | Session | Yes | Send message |
+| GET | `/api/mail/threads` | Session | No | List threads |
+| GET | `/api/mail/threads/{thread_id}` | Session | No | Get thread details |
+| GET | `/api/mail/attachments/{att_id}` | Session | No | Download attachment |
+| GET | `/api/mail/labels` | Session | No | List labels |
+| POST | `/api/mail/labels` | Session | Yes | Create label |
+| DELETE | `/api/mail/labels/{label_id}` | Session | Yes | Delete label |
+| POST | `/api/mail/batch` | Session | Yes | Batch label updates |
+
+## OWorkspace
+
+| Method | Endpoint | Auth | CSRF | Description |
+|--------|----------|------|------|-------------|
+| GET | `/api/oworkspace/files` | User | No | List files |
+| POST | `/api/oworkspace/files` | User | Yes | Create file |
+| GET | `/api/oworkspace/files/{filename}` | User | No | Read file |
+| PUT | `/api/oworkspace/files/{filename}` | User | Yes | Save file |
+| DELETE | `/api/oworkspace/files/{filename}` | User | Yes | Delete file |
+| POST | `/api/oworkspace/files/{filename}/rename`| User | Yes | Rename file |

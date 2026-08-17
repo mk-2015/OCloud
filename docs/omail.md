@@ -21,9 +21,9 @@ POST /api/mail/messages/send
 **Request Body**:
 ```json
 {
-    "to": "recipient@company.org",
-    "cc": "cc@company.org",
-    "bcc": "bcc@company.org",
+    "to": "recipient@opencloud.local",
+    "cc": "cc@opencloud.local",
+    "bcc": "bcc@opencloud.local",
     "subject": "Email Subject",
     "body_plain": "Plain text content",
     "body_html": "HTML content",
@@ -47,7 +47,7 @@ GET /api/mail/threads
 **Auth**: Session
 
 **Query Parameters**:
-- `q`: Search query (e.g., "label:INBOX", "from:user@company.org")
+- `q`: Search query (e.g., "label:INBOX", "from:user@opencloud.local")
 - `limit`: Number of threads to return (default 20, max 100)
 - `offset`: Offset for pagination
 

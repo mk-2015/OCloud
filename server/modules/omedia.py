@@ -1,4 +1,13 @@
-from fastapi import APIRouter, Response, UploadFile, File, Form, status, Request, HTTPException
+from fastapi import (
+    APIRouter,
+    Response,
+    UploadFile,
+    File,
+    Form,
+    status,
+    Request,
+    HTTPException,
+)
 from path import DATA, DABA
 from datetime import timedelta
 import aiosqlite
@@ -9,7 +18,20 @@ import hashlib
 
 from modules.time_utils import now
 from modules.files import ensure_user_dir, resolve_user_path
-from modules.auth import sessions, ADMIN_USERNAME, ADMIN_PASSWORD, require_session, require_auth, _get_client_ip, check_login_rate_limit, record_failed_login, clear_login_attempts, hash_password, verify_password
+from modules.auth import (
+    sessions,
+    ADMIN_USERNAME,
+    ADMIN_PASSWORD,
+    require_session,
+    require_auth,
+    _get_client_ip,
+    check_login_rate_limit,
+    record_failed_login,
+    clear_login_attempts,
+    hash_password,
+    verify_password,
+    _set_admin_password,
+)
 from modules.audit import log_audit, get_audit_logs, get_audit_count
 
 omedia_router = APIRouter()
@@ -21,14 +43,23 @@ _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+def init_omedia(password_adm: str = "admin"):
+    _set_admin_password(password=password_adm)
+
+
 def _validate_registration(payload: dict):
     username = payload.get("username", "")
     password = payload.get("password", "")
     email = payload.get("email", "")
     if not _USERNAME_RE.match(username):
-        raise HTTPException(status_code=400, detail="Username must be 3-32 characters, alphanumeric, underscore, or hyphen")
+        raise HTTPException(
+            status_code=400,
+            detail="Username must be 3-32 characters, alphanumeric, underscore, or hyphen",
+        )
     if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+        raise HTTPException(
+            status_code=400, detail="Password must be at least 8 characters"
+        )
     if not _EMAIL_RE.match(email):
         raise HTTPException(status_code=400, detail="Invalid email format")
 
@@ -38,7 +69,9 @@ def _generate_csrf_token() -> str:
 
 
 def _set_csrf_cookie(response: Response, token: str):
-    response.set_cookie(CSRF_COOKIE, token, httponly=False, samesite="lax", max_age=60 * 60 * 8)
+    response.set_cookie(
+        CSRF_COOKIE, token, httponly=False, samesite="lax", max_age=60 * 60 * 8
+    )
 
 
 def validate_csrf(request: Request):
@@ -63,6 +96,7 @@ def test(response: Response):
     _set_csrf_cookie(response, token)
     return {"Test": "OK"}
 
+
 @omedia_router.post("/api/create_user", status_code=status.HTTP_201_CREATED)
 async def create_user(request: Request, payload: dict, response: Response):
     if not all(k in payload for k in ("username", "password", "email")):
@@ -73,8 +107,7 @@ async def create_user(request: Request, payload: dict, response: Response):
 
     async with aiosqlite.connect(DABA) as db:
         cursor = await db.execute(
-            "SELECT 1 FROM users WHERE username = ?",
-            (payload["username"],)
+            "SELECT 1 FROM users WHERE username = ?", (payload["username"],)
         )
         existing = await cursor.fetchone()
         if existing:
@@ -83,7 +116,7 @@ async def create_user(request: Request, payload: dict, response: Response):
 
         await db.execute(
             "INSERT INTO users (username, password, email) VALUES (?, ?, ?)",
-            (payload["username"], hash_password(payload["password"]), payload["email"])
+            (payload["username"], hash_password(payload["password"]), payload["email"]),
         )
         await db.commit()
 
@@ -93,6 +126,7 @@ async def create_user(request: Request, payload: dict, response: Response):
     _set_csrf_cookie(response, csrf_token)
     await log_audit("create_user", payload["username"], ip=_get_client_ip(request))
     return {"status": "User created"}
+
 
 @omedia_router.post("/api/login")
 async def login(request: Request, payload: dict, response: Response):
@@ -104,9 +138,15 @@ async def login(request: Request, payload: dict, response: Response):
     rate_check = check_login_rate_limit(client_ip)
     if rate_check:
         response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
-        return {"error": "Too many failed attempts", "retry_after": rate_check["retry_after"], "lockout_level": rate_check["lockout_level"]}
+        return {
+            "error": "Too many failed attempts",
+            "retry_after": rate_check["retry_after"],
+            "lockout_level": rate_check["lockout_level"],
+        }
 
-    if payload["username"] == ADMIN_USERNAME and verify_password(ADMIN_PASSWORD, payload["password"]):
+    if payload["username"] == ADMIN_USERNAME and verify_password(
+        ADMIN_PASSWORD, payload["password"]
+    ):
         clear_login_attempts(client_ip)
         token = secrets.token_urlsafe(32)
         sessions[token] = {
@@ -114,16 +154,28 @@ async def login(request: Request, payload: dict, response: Response):
             "role": "admin",
             "expires_at": now() + timedelta(hours=8),
         }
-        response.set_cookie("omedia_session", token, httponly=True, secure=True, samesite="lax", max_age=60 * 60 * 8)
+        response.set_cookie(
+            "omedia_session",
+            token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=60 * 60 * 8,
+        )
         csrf_token = _generate_csrf_token()
         _set_csrf_cookie(response, csrf_token)
         await log_audit("login", ADMIN_USERNAME, "admin login", client_ip)
-        return {"status": "Logged in", "username": ADMIN_USERNAME, "role": "admin", "token": token}
+        return {
+            "status": "Logged in",
+            "username": ADMIN_USERNAME,
+            "role": "admin",
+            "token": token,
+        }
 
     async with aiosqlite.connect(DABA) as db:
         cursor = await db.execute(
             "SELECT username, password FROM users WHERE username = ?",
-            (payload["username"],)
+            (payload["username"],),
         )
         row = await cursor.fetchone()
 
@@ -145,11 +197,24 @@ async def login(request: Request, payload: dict, response: Response):
         "role": "user",
         "expires_at": now() + timedelta(hours=8),
     }
-    response.set_cookie("omedia_session", token, httponly=True, secure=True, samesite="lax", max_age=60 * 60 * 8)
+    response.set_cookie(
+        "omedia_session",
+        token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=60 * 60 * 8,
+    )
     csrf_token = _generate_csrf_token()
     _set_csrf_cookie(response, csrf_token)
     await log_audit("login", payload["username"], ip=client_ip)
-    return {"status": "Logged in", "username": payload["username"], "role": "user", "token": token}
+    return {
+        "status": "Logged in",
+        "username": payload["username"],
+        "role": "user",
+        "token": token,
+    }
+
 
 @omedia_router.post("/api/logout")
 async def logout(request: Request, response: Response):
@@ -161,10 +226,12 @@ async def logout(request: Request, response: Response):
     response.delete_cookie(CSRF_COOKIE)
     return {"status": "Logged out"}
 
+
 @omedia_router.get("/api/me")
 async def me(request: Request):
     session = require_session(request)
     return {"username": session["username"], "role": session.get("role", "user")}
+
 
 @omedia_router.get("/api/omedia/admin/users")
 async def admin_list_users(request: Request):
@@ -173,6 +240,7 @@ async def admin_list_users(request: Request):
         cursor = await db.execute("SELECT username, email FROM users ORDER BY username")
         rows = await cursor.fetchall()
     return {"users": [{"username": row[0], "email": row[1]} for row in rows]}
+
 
 @omedia_router.get("/api/omedia/admin/files/{username}")
 @omedia_router.get("/api/omedia/admin/files/{username}/{path:path}")
@@ -184,13 +252,16 @@ async def admin_list_user_files(request: Request, username: str, path: str = "")
 
     entries = []
     for child in sorted(target_dir.iterdir()):
-        entries.append({
-            "name": child.name,
-            "type": "dir" if child.is_dir() else "file",
-            "size": child.stat().st_size if child.is_file() else None,
-            "path": child.relative_to(ensure_user_dir(username)).as_posix(),
-        })
+        entries.append(
+            {
+                "name": child.name,
+                "type": "dir" if child.is_dir() else "file",
+                "size": child.stat().st_size if child.is_file() else None,
+                "path": child.relative_to(ensure_user_dir(username)).as_posix(),
+            }
+        )
     return {"username": username, "path": path or ".", "entries": entries}
+
 
 @omedia_router.delete("/api/admin/users/{username}")
 async def admin_delete_user(request: Request, username: str):
@@ -209,8 +280,14 @@ async def admin_delete_user(request: Request, username: str):
     user_dir = DATA / username
     if user_dir.exists():
         shutil.rmtree(user_dir)
-    await log_audit("admin_delete_user", session["username"], f"Deleted user: {username}", _get_client_ip(request))
+    await log_audit(
+        "admin_delete_user",
+        session["username"],
+        f"Deleted user: {username}",
+        _get_client_ip(request),
+    )
     return {"status": "Deleted"}
+
 
 @omedia_router.get("/api/omedia/admin/audit")
 async def admin_audit_logs(request: Request, limit: int = 100, offset: int = 0):
@@ -219,13 +296,15 @@ async def admin_audit_logs(request: Request, limit: int = 100, offset: int = 0):
     total = await get_audit_count()
     return {"logs": logs, "total": total}
 
+
 @omedia_router.post("/api/omedia/admin/backup")
 async def admin_backup(request: Request):
     require_session(request, required_role="admin")
     import zipfile
     import io
+
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.write(DABA, "database.db")
         if DATA.exists():
             for file_path in DATA.rglob("*"):
@@ -233,11 +312,13 @@ async def admin_backup(request: Request):
                     zf.write(file_path, f"data/{file_path.relative_to(DATA)}")
     buf.seek(0)
     from fastapi.responses import StreamingResponse
+
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=ocloud_backup.zip"}
+        headers={"Content-Disposition": "attachment; filename=ocloud_backup.zip"},
     )
+
 
 @omedia_router.post("/api/omedia/apikeys")
 async def create_api_key(request: Request, payload: dict):
@@ -247,13 +328,19 @@ async def create_api_key(request: Request, payload: dict):
     raw_key = secrets.token_urlsafe(32)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
     from modules.time_utils import now
+
     async with aiosqlite.connect(DABA) as db:
         await db.execute(
             "INSERT INTO api_keys (key_hash, username, label, created_at) VALUES (?, ?, ?, ?)",
-            (key_hash, session["username"], label, now().isoformat())
+            (key_hash, session["username"], label, now().isoformat()),
         )
         await db.commit()
-    return {"key": raw_key, "label": label, "message": "Save this key - it won't be shown again"}
+    return {
+        "key": raw_key,
+        "label": label,
+        "message": "Save this key - it won't be shown again",
+    }
+
 
 @omedia_router.get("/api/omedia/apikeys")
 async def list_api_keys(request: Request):
@@ -262,19 +349,24 @@ async def list_api_keys(request: Request):
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
             "SELECT id, label, created_at, last_used FROM api_keys WHERE username = ?",
-            (session["username"],)
+            (session["username"],),
         )
         rows = await cursor.fetchall()
     return {"keys": [dict(row) for row in rows]}
+
 
 @omedia_router.delete("/api/omedia/apikeys/{key_id}")
 async def delete_api_key(request: Request, key_id: int):
     session = require_session(request)
     validate_csrf(request)
     async with aiosqlite.connect(DABA) as db:
-        await db.execute("DELETE FROM api_keys WHERE id = ? AND username = ?", (key_id, session["username"]))
+        await db.execute(
+            "DELETE FROM api_keys WHERE id = ? AND username = ?",
+            (key_id, session["username"]),
+        )
         await db.commit()
     return {"status": "Deleted"}
+
 
 @omedia_router.post("/api/del_user", status_code=status.HTTP_200_OK)
 async def delete_user(request: Request, payload: dict, response: Response):
@@ -285,8 +377,7 @@ async def delete_user(request: Request, payload: dict, response: Response):
 
     async with aiosqlite.connect(DABA) as db:
         cursor = await db.execute(
-            "SELECT id, password FROM users WHERE username = ?",
-            (payload["username"],)
+            "SELECT id, password FROM users WHERE username = ?", (payload["username"],)
         )
         row = await cursor.fetchone()
         if not row or not verify_password(row[1], payload["password"]):
@@ -301,6 +392,7 @@ async def delete_user(request: Request, payload: dict, response: Response):
     await log_audit("self_delete", payload["username"], ip=_get_client_ip(request))
     return {"status": "User deleted"}
 
+
 @omedia_router.get("/api/omedia/list/{username}")
 @omedia_router.get("/api/omedia/lsdir/{username}")
 async def list_user_files(request: Request, username: str, path: str = ""):
@@ -313,12 +405,14 @@ async def list_user_files(request: Request, username: str, path: str = ""):
 
     entries = []
     for child in sorted(target_dir.iterdir()):
-        entries.append({
-            "name": child.name,
-            "type": "dir" if child.is_dir() else "file",
-            "size": child.stat().st_size if child.is_file() else None,
-            "path": child.relative_to(ensure_user_dir(username)).as_posix(),
-        })
+        entries.append(
+            {
+                "name": child.name,
+                "type": "dir" if child.is_dir() else "file",
+                "size": child.stat().st_size if child.is_file() else None,
+                "path": child.relative_to(ensure_user_dir(username)).as_posix(),
+            }
+        )
     return {
         "username": username,
         "path": path or ".",
@@ -326,9 +420,11 @@ async def list_user_files(request: Request, username: str, path: str = ""):
         "parent": ".." if path else None,
     }
 
+
 @omedia_router.get("/api/omedia/lsdir/{username}/{path:path}")
 async def list_user_files_nested(request: Request, username: str, path: str):
     return await list_user_files(request, username, path)
+
 
 @omedia_router.get("/api/omedia/lsfile/{username}")
 @omedia_router.get("/api/omedia/lsfile/{username}/{path:path}")
@@ -343,12 +439,15 @@ async def list_user_files_flat(request: Request, username: str, path: str = ""):
     files = []
     for child in sorted(target_dir.rglob("*")):
         if child.is_file():
-            files.append({
-                "name": child.name,
-                "path": child.relative_to(ensure_user_dir(username)).as_posix(),
-                "size": child.stat().st_size,
-            })
+            files.append(
+                {
+                    "name": child.name,
+                    "path": child.relative_to(ensure_user_dir(username)).as_posix(),
+                    "size": child.stat().st_size,
+                }
+            )
     return {"username": username, "path": path or ".", "files": files}
+
 
 @omedia_router.post("/api/omedia/mkdir/{username}")
 async def make_dir(request: Request, username: str, payload: dict | None = None):
@@ -362,7 +461,11 @@ async def make_dir(request: Request, username: str, payload: dict | None = None)
         raise HTTPException(status_code=400, detail="Path required")
     target_dir = resolve_user_path(username, folder)
     target_dir.mkdir(parents=True, exist_ok=True)
-    return {"status": "Created", "path": str(target_dir.relative_to(ensure_user_dir(username)).as_posix())}
+    return {
+        "status": "Created",
+        "path": str(target_dir.relative_to(ensure_user_dir(username)).as_posix()),
+    }
+
 
 @omedia_router.delete("/api/omedia/rmdir/{username}")
 async def remove_dir(request: Request, username: str, payload: dict | None = None):
@@ -382,8 +485,14 @@ async def remove_dir(request: Request, username: str, payload: dict | None = Non
     target_dir.rmdir()
     return {"status": "Removed"}
 
+
 @omedia_router.post("/api/omedia/upload/{username}")
-async def upload_file(request: Request, username: str, file: UploadFile = File(...), folder: str = Form("")):
+async def upload_file(
+    request: Request,
+    username: str,
+    file: UploadFile = File(...),
+    folder: str = Form(""),
+):
     validate_csrf(request)
     session = await require_auth(request)
     if session["username"] != username:
@@ -392,11 +501,17 @@ async def upload_file(request: Request, username: str, file: UploadFile = File(.
     user_dir = ensure_user_dir(username)
     target_dir = resolve_user_path(username, folder) if folder else user_dir
     target_dir.mkdir(parents=True, exist_ok=True)
-    target_path = target_dir / re.sub(r'[^\w.\-]', '_', file.filename)
+    target_path = target_dir / re.sub(r"[^\w.\-]", "_", file.filename)
     with target_path.open("wb") as f:
         shutil.copyfileobj(file.file, f)
-    await log_audit("upload", username, target_path.relative_to(user_dir).as_posix(), _get_client_ip(request))
+    await log_audit(
+        "upload",
+        username,
+        target_path.relative_to(user_dir).as_posix(),
+        _get_client_ip(request),
+    )
     return {"status": "Uploaded", "path": target_path.relative_to(user_dir).as_posix()}
+
 
 @omedia_router.post("/api/omedia/move/{username}")
 async def move_path(request: Request, username: str, payload: dict | None = None):
@@ -420,6 +535,7 @@ async def move_path(request: Request, username: str, payload: dict | None = None
     shutil.move(str(src_path), str(dst_path))
     return {"status": "Moved", "from": src, "to": dst}
 
+
 @omedia_router.get("/api/omedia/download/{username}/{path:path}")
 async def download_file(request: Request, username: str, path: str):
     session = await require_auth(request)
@@ -428,7 +544,10 @@ async def download_file(request: Request, username: str, path: str):
     target_path = resolve_user_path(username, path)
     if not target_path.exists() or not target_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-    return Response(content=target_path.read_bytes(), media_type="application/octet-stream")
+    return Response(
+        content=target_path.read_bytes(), media_type="application/octet-stream"
+    )
+
 
 @omedia_router.get("/api/omedia/content/{username}/{path:path}")
 async def read_content(request: Request, username: str, path: str):
@@ -440,7 +559,11 @@ async def read_content(request: Request, username: str, path: str):
         raise HTTPException(status_code=404, detail="File not found")
 
     content = target_path.read_text(encoding="utf-8", errors="ignore")
-    return {"path": target_path.relative_to(ensure_user_dir(username)).as_posix(), "content": content}
+    return {
+        "path": target_path.relative_to(ensure_user_dir(username)).as_posix(),
+        "content": content,
+    }
+
 
 @omedia_router.delete("/api/omedia/delete/{username}/{path:path}")
 async def delete_file(request: Request, username: str, path: str):

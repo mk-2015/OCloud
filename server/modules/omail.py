@@ -6,6 +6,7 @@ import re
 import sqlite3
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -23,6 +24,12 @@ ATTACHMENT_STORAGE.mkdir(parents=True, exist_ok=True)
 MAX_STORAGE_PER_USER_BYTES = 10 * 1024 * 1024 * 1024
 
 EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+
+DOMAIN = "opencloud.local"
+
+
+def init_omail(maildomain: str = "opencloud.local"):
+    DOMAIN = maildomain
 
 
 async def init_moha_engine_db():
@@ -107,19 +114,36 @@ async def init_moha_engine_db():
             );
             """
         )
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_msg_thread ON moha_messages(thread_id);")
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_msg_timestamp ON moha_messages(timestamp);")
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_msg_sender ON moha_messages(sender);")
-        await db.execute("CREATE INDEX IF NOT EXISTS idx_msg_recipient ON moha_messages(recipient);")
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_msg_thread ON moha_messages(thread_id);"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_msg_timestamp ON moha_messages(timestamp);"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_msg_sender ON moha_messages(sender);"
+        )
+        await db.execute(
+            "CREATE INDEX IF NOT EXISTS idx_msg_recipient ON moha_messages(recipient);"
+        )
         await db.commit()
 
 
-def generate_rfc822_message_id(domain: str = "company.org") -> str:
-    return f"<{uuid.uuid4().hex}.{int(time.time() * 1000)}.moha@{domain}>"
+def generate_rfc822_message_id() -> str:
+    return f"<{uuid.uuid4().hex}.{int(time.time() * 1000)}.moha@{DOMAIN}>"
 
 
 async def ensure_system_labels(db: aiosqlite.Connection, user_email: str):
-    system_labels = ["INBOX", "SENT", "DRAFT", "SPAM", "TRASH", "STARRED", "UNREAD", "IMPORTANT"]
+    system_labels = [
+        "INBOX",
+        "SENT",
+        "DRAFT",
+        "SPAM",
+        "TRASH",
+        "STARRED",
+        "UNREAD",
+        "IMPORTANT",
+    ]
     for label in system_labels:
         label_id = f"sys_{user_email}_{label.lower()}"
         await db.execute(
@@ -149,7 +173,7 @@ async def index_message_fts(
 async def send_message(request: Request, background_tasks: BackgroundTasks):
     session = require_session(request)
     username = session.get("username")
-    sender_email = f"{username}@company.org"
+    sender_email = f"{username}@{DOMAIN}"
     logging.info(f"Send message request from {sender_email}")
 
     validate_csrf(request)
@@ -209,7 +233,9 @@ async def send_message(request: Request, background_tasks: BackgroundTasks):
                 )
 
             msg_id = f"msg_{uuid.uuid4().hex[:12]}"
-            total_size = len(body_plain.encode("utf-8")) + len(body_html.encode("utf-8"))
+            total_size = len(body_plain.encode("utf-8")) + len(
+                body_html.encode("utf-8")
+            )
 
             try:
                 await db.execute(
@@ -220,8 +246,19 @@ async def send_message(request: Request, background_tasks: BackgroundTasks):
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
                     """,
                     (
-                        msg_id, thread_id, header_msg_id, in_reply_to, sender_email,
-                        recipient, cc, bcc, subject, body_plain, body_html, now, total_size
+                        msg_id,
+                        thread_id,
+                        header_msg_id,
+                        in_reply_to,
+                        sender_email,
+                        recipient,
+                        cc,
+                        bcc,
+                        subject,
+                        body_plain,
+                        body_html,
+                        now,
+                        total_size,
                     ),
                 )
                 break
@@ -292,21 +329,12 @@ async def send_message(request: Request, background_tasks: BackgroundTasks):
     )
 
 
-@Mailer.get("/api/mail/threads")
-async def list_threads(
-    request: Request,
-    q: Optional[str] = Query(None),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-):
-    session = require_session(request)
-    username = session.get("username")
-    user_email = f"{username}@company.org"
-    await init_moha_engine_db()
-
+def parse_search_query(q):
     target_label = "INBOX"
     fts_terms = []
     from_filter, to_filter, subject_filter = None, None, None
+    has_attachment = False
+    before_timestamp = None
 
     if q:
         tokens = q.split()
@@ -319,8 +347,50 @@ async def list_threads(
                 to_filter = token.split(":")[1]
             elif token.lower().startswith("subject:"):
                 subject_filter = token.split(":")[1]
+            elif token.lower() == "has:attachment":
+                has_attachment = True
+            elif token.lower().startswith("before:"):
+                try:
+                    before_date_str = token.split(":")[1]
+                    before_timestamp = datetime.strptime(
+                        before_date_str, "%Y-%m-%d"
+                    ).timestamp()
+                except ValueError:
+                    pass
             else:
                 fts_terms.append(token)
+    return (
+        target_label,
+        fts_terms,
+        from_filter,
+        to_filter,
+        subject_filter,
+        has_attachment,
+        before_timestamp,
+    )
+
+
+@Mailer.get("/api/mail/threads")
+async def list_threads(
+    request: Request,
+    q: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    session = require_session(request)
+    username = session.get("username")
+    user_email = f"{username}@{DOMAIN}"
+    await init_moha_engine_db()
+
+    (
+        target_label,
+        fts_terms,
+        from_filter,
+        to_filter,
+        subject_filter,
+        has_attachment,
+        before_timestamp,
+    ) = parse_search_query(q)
 
     async with aiosqlite.connect(DABA) as db:
         await ensure_system_labels(db, user_email)
@@ -344,10 +414,17 @@ async def list_threads(
         if subject_filter:
             sql += " AND m.subject LIKE ?"
             params.append(f"%{subject_filter}%")
+        if has_attachment:
+            sql += " AND m.id IN (SELECT message_id FROM moha_attachments)"
+        if before_timestamp:
+            sql += " AND m.timestamp < ?"
+            params.append(before_timestamp)
 
         if fts_terms:
             raw_fts = " ".join(fts_terms)
-            sql += " AND m.id IN (SELECT message_id FROM moha_fts WHERE moha_fts MATCH ?)"
+            sql += (
+                " AND m.id IN (SELECT message_id FROM moha_fts WHERE moha_fts MATCH ?)"
+            )
             params.append(raw_fts)
 
         sql += " ORDER BY t.last_message_timestamp DESC LIMIT ? OFFSET ?"
@@ -371,14 +448,16 @@ async def list_threads(
             ) as l_cursor:
                 labels = [l_row[0] for l_row in await l_cursor.fetchall()]
 
-            threads.append({
-                "id": thread_id,
-                "subject": r[1],
-                "last_message_timestamp": r[2],
-                "snippet": r[3],
-                "message_count": r[4],
-                "labels": labels,
-            })
+            threads.append(
+                {
+                    "id": thread_id,
+                    "subject": r[1],
+                    "last_message_timestamp": r[2],
+                    "snippet": r[3],
+                    "message_count": r[4],
+                    "labels": labels,
+                }
+            )
 
     return {
         "query": q or f"label:{target_label}",
@@ -391,7 +470,7 @@ async def list_threads(
 async def get_thread_details(thread_id: str, request: Request):
     session = require_session(request)
     username = session.get("username")
-    user_email = f"{username}@company.org"
+    user_email = f"{username}@{DOMAIN}"
     await init_moha_engine_db()
 
     async with aiosqlite.connect(DABA) as db:
@@ -445,21 +524,23 @@ async def get_thread_details(thread_id: str, request: Request):
                 for a in att_rows
             ]
 
-            messages.append({
-                "id": msg_id,
-                "message_id_header": r[1],
-                "in_reply_to": r[2],
-                "sender": r[3],
-                "recipient": r[4],
-                "cc": r[5],
-                "subject": r[6],
-                "body_plain": r[7],
-                "body_html": r[8],
-                "timestamp": r[9],
-                "is_draft": bool(r[10]),
-                "labels": labels,
-                "attachments": attachments,
-            })
+            messages.append(
+                {
+                    "id": msg_id,
+                    "message_id_header": r[1],
+                    "in_reply_to": r[2],
+                    "sender": r[3],
+                    "recipient": r[4],
+                    "cc": r[5],
+                    "subject": r[6],
+                    "body_plain": r[7],
+                    "body_html": r[8],
+                    "timestamp": r[9],
+                    "is_draft": bool(r[10]),
+                    "labels": labels,
+                    "attachments": attachments,
+                }
+            )
 
     return {
         "id": t_row[0],
@@ -473,7 +554,7 @@ async def get_thread_details(thread_id: str, request: Request):
 async def download_attachment(attachment_id: str, request: Request):
     session = require_session(request)
     username = session.get("username")
-    user_email = f"{username}@company.org"
+    user_email = f"{username}@{DOMAIN}"
 
     await init_moha_engine_db()
 
@@ -500,7 +581,7 @@ async def download_attachment(attachment_id: str, request: Request):
 async def list_labels(request: Request):
     session = require_session(request)
     username = session.get("username")
-    user_email = f"{username}@company.org"
+    user_email = f"{username}@{DOMAIN}"
 
     async with aiosqlite.connect(DABA) as db:
         async with db.execute(
@@ -515,7 +596,7 @@ async def list_labels(request: Request):
 async def create_label(request: Request):
     session = require_session(request)
     username = session.get("username")
-    user_email = f"{username}@company.org"
+    user_email = f"{username}@{DOMAIN}"
 
     validate_csrf(request)
     payload = await request.json()
@@ -540,7 +621,7 @@ async def create_label(request: Request):
 async def delete_label(label_id: str, request: Request):
     session = require_session(request)
     username = session.get("username")
-    user_email = f"{username}@company.org"
+    user_email = f"{username}@{DOMAIN}"
 
     validate_csrf(request)
 
@@ -558,7 +639,7 @@ async def delete_label(label_id: str, request: Request):
 async def batch_update_labels(request: Request):
     session = require_session(request)
     username = session.get("username")
-    user_email = f"{username}@company.org"
+    user_email = f"{username}@{DOMAIN}"
 
     validate_csrf(request)
     payload = await request.json()

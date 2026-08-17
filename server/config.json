@@ -15,10 +15,14 @@
     "fileshare": true,
     "monitord": true,
     "webshell": true,
-    "iplocate": false
+    "iplocate": true
   },
   "oworkspace": {
-    "use": true
+    "use": true,
+    "omail": 
+    {
+      "domain": "opencloud.local"
+    }
   },
   "max_upload_mb": 1024
 }
