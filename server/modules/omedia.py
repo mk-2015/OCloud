@@ -529,6 +529,12 @@ async def move_path(request: Request, username: str, payload: dict | None = None
     dst_path = resolve_user_path(username, dst)
     if not src_path.exists():
         raise HTTPException(status_code=404, detail="Source not found")
+        
+    # If the destination exists and is a directory, move the source into it
+    if dst_path.exists() and dst_path.is_dir():
+        dst_path = dst_path / src_path.name
+        
+    # If the final destination still exists, that's a conflict
     if dst_path.exists():
         raise HTTPException(status_code=409, detail="Destination already exists")
 

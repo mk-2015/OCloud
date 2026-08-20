@@ -69,6 +69,7 @@ async function loadFiles(path = currentPath) {
         ${isDir ? `<button class="link-btn" data-enter="${escapeHTML(entry.path)}">Open</button>` : `<a href="/api/omedia/download/${encodeURIComponent(user.username)}/${encodeURIComponent(entry.path)}" target="_blank">Download</a>`}
         ${!isDir ? `<button class="link-btn btn-share" data-share="${escapeHTML(entry.path)}">Share</button>` : ''}
         <button data-name="${escapeHTML(entry.path)}" class="link-btn btn-delete">Delete</button>
+        <button data-move="${escapeHTML(entry.path)}" class="link-btn">Move</button>
       </div>
     `;
     list.appendChild(item);
@@ -148,6 +149,49 @@ fileList.addEventListener('click', async (event) => {
       status.textContent = 'Deleted.';
       loadFiles();
     }
+  }
+
+  if (button.hasAttribute('data-move')) {
+    const user = await requireSession();
+    if (!user) return;
+    const src = button.getAttribute('data-move');
+    const modal = document.getElementById('modalContainer');
+    const input = document.getElementById('modalInput');
+    const confirmBtn = document.getElementById('modalConfirm');
+    const cancelBtn = document.getElementById('modalCancel');
+
+    input.value = src;
+    modal.style.display = 'flex';
+
+    const handleConfirm = async () => {
+      const dst = input.value.trim();
+      if (!dst) return;
+      modal.style.display = 'none';
+      confirmBtn.removeEventListener('click', handleConfirm);
+      cancelBtn.removeEventListener('click', handleCancel);
+
+      const response = await fetch(`/api/omedia/move/${encodeURIComponent(user.username)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+        body: JSON.stringify({ from: src, to: dst }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        status.textContent = 'Moved.';
+        loadFiles();
+      } else {
+        status.textContent = data.detail || 'Failed to move.';
+      }
+    };
+
+    const handleCancel = () => {
+      modal.style.display = 'none';
+      confirmBtn.removeEventListener('click', handleConfirm);
+      cancelBtn.removeEventListener('click', handleCancel);
+    };
+
+    confirmBtn.addEventListener('click', handleConfirm);
+    cancelBtn.addEventListener('click', handleCancel);
   }
 
   if (button.hasAttribute('data-share')) {
