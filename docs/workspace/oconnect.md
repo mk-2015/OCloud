@@ -31,10 +31,15 @@ The backend uses a combination of REST endpoints for control flow and a WebSocke
 #### Transfer Protocol Detail
 The WebSocket operates on an offer/response pattern:
 1.  **Offers:** The server pushes JSON payloads containing a dictionary of pending transfers (`connection-N` keys).
-2.  **Responses:** The client must send a newline-separated string response for each offer:
-    `{ACTION} {CONNECTION_KEY} {DESTINATION_PATH}`
-    *   **ACTION:** `OK` or `NO`
-    *   **DESTINATION_PATH:** Optional subdir within the user's storage.
+2.  **Responses:** The client must send a JSON object with decisions for each offer:
+    ```json
+    {
+      "connection-1": {
+        "action": "OK" | "NO",
+        "dest": "Optional destination subdirectory"
+      }
+    }
+    ```
 
 ---
 
