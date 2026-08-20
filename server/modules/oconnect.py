@@ -48,6 +48,7 @@ async def network_connect(request: Request):
                 "recived": []
             }
         })
+        logging.info(f"User {username} connected. Total connected: {len(CONNECTIONS)}")
 
     return {"success": True}
 
@@ -55,6 +56,7 @@ async def network_connect(request: Request):
 @OConnect.get("/api/konnect/list-connected")
 async def list_connected(request: Request):
     require_session(request)
+    logging.info(f"Listing connected users: {[c['user'] for c in CONNECTIONS]}")
     return CONNECTIONS
 
 
@@ -64,6 +66,7 @@ async def network_disconnect(request: Request):
     username = session["username"]
 
     CONNECTIONS[:] = [c for c in CONNECTIONS if c["user"] != username]
+    logging.info(f"User {username} disconnected. Total connected: {len(CONNECTIONS)}")
 
     return {"success": True}
 
@@ -72,9 +75,12 @@ async def network_disconnect(request: Request):
 async def send_file(request: Request, payload: SendFilePayload):
     session = require_session(request)
     sender = session["username"]
+    
+    logging.info(f"Transfer attempt from {sender} to {payload.to_user}. CONNECTIONS: {CONNECTIONS}")
 
     recipient = next((c for c in CONNECTIONS if c["user"] == payload.to_user), None)
     if not recipient:
+        logging.warning(f"Transfer failed: Recipient '{payload.to_user}' not found in CONNECTIONS.")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
             detail=f"User '{payload.to_user}' is not connected."
@@ -120,7 +126,8 @@ async def recieve_file(websock: WebSocket):
                 await websock.send_json(connection_map)
 
                 try:
-                    response_text = await asyncio.wait_for(websock.receive_text(), timeout=10.0)
+                    # Expecting a JSON object: {"connection-1": {"action": "OK", "dest": "path/with spaces"}}
+                    response_data = await asyncio.wait_for(websock.receive_json(), timeout=10.0)
                 except asyncio.TimeoutError:
                     continue
                 except WebSocketDisconnect:
@@ -129,16 +136,18 @@ async def recieve_file(websock: WebSocket):
                     logging.warning(f"Error receiving response for {recipient_user}: {e}")
                     continue
 
-                logging.info(f"Received WebSocket response from {recipient_user}: {response_text}")
+                logging.info(f"Received WebSocket response from {recipient_user}: {response_data}")
 
                 decisions = {}
-                for line in response_text.strip().splitlines():
-                    parts = line.strip().split()
-                    if len(parts) >= 2:
-                        action, conn_key = parts[0].upper(), parts[1]
-                        dest_path = parts[2] if len(parts) >= 3 else ""
+                # response_data is expected to be a dict: { "connection-key": {"action": "...", "dest": "..."} }
+                if isinstance(response_data, dict):
+                    for conn_key, info in response_data.items():
+                        action = info.get("action", "").upper()
+                        dest_path = info.get("dest", "")
                         decisions[conn_key] = {"action": action, "dest": dest_path}
                         logging.info(f"Decision for {conn_key}: {action}, Dest: {dest_path}")
+                else:
+                    logging.warning(f"Unexpected response format from {recipient_user}")
 
                 results = []
                 for key, connection_info in connection_map.items():

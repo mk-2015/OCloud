@@ -346,18 +346,20 @@ async function renderIncomingOffers(offers) {
 function respondToTransfers(acceptAll) {
     if (!pendingConnectionsPayload || !socket) return;
 
-    let responseLines = [];
+    const responses = {};
 
     Object.keys(pendingConnectionsPayload).forEach(key => {
         const chk = document.getElementById(`chk-${key}`);
         const sel = document.getElementById(`sel-${key}`);
         const isAccepted = acceptAll && chk && chk.checked;
         
-        const dest = sel ? sel.value : "";
-        responseLines.push(`${isAccepted ? 'OK' : 'NO'} ${key} ${dest}`);
+        responses[key] = {
+            action: isAccepted ? 'OK' : 'NO',
+            dest: sel ? sel.value : ""
+        };
     });
 
-    socket.send(responseLines.join('\n'));
+    socket.send(JSON.stringify(responses));
 
     pendingConnectionsPayload = null;
     transferModal.classList.remove('active');
