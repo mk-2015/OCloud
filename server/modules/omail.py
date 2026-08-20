@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from modules.auth import require_session
 from modules.omedia import DABA, log_audit, validate_csrf
 
-Mailer = APIRouter(tags=["OMail Gmail Engine"])
+Mailer = APIRouter()
 
 ATTACHMENT_STORAGE = Path("workspace/mail_storage/attachments")
 ATTACHMENT_STORAGE.mkdir(parents=True, exist_ok=True)
@@ -335,6 +335,7 @@ def parse_search_query(q):
     from_filter, to_filter, subject_filter = None, None, None
     has_attachment = False
     before_timestamp = None
+    after_timestamp = None
 
     if q:
         tokens = q.split()
@@ -349,11 +350,23 @@ def parse_search_query(q):
                 subject_filter = token.split(":")[1]
             elif token.lower() == "has:attachment":
                 has_attachment = True
-            elif token.lower().startswith("before:"):
+            elif token.lower().startswith("before:") or token.lower().startswith(
+                "before-date:"
+            ):
                 try:
                     before_date_str = token.split(":")[1]
                     before_timestamp = datetime.strptime(
                         before_date_str, "%Y-%m-%d"
+                    ).timestamp()
+                except ValueError:
+                    pass
+            elif token.lower().startswith("after:") or token.lower().startswith(
+                "after-date:"
+            ):
+                try:
+                    after_date_str = token.split(":")[1]
+                    after_timestamp = datetime.strptime(
+                        after_date_str, "%Y-%m-%d"
                     ).timestamp()
                 except ValueError:
                     pass
@@ -367,6 +380,7 @@ def parse_search_query(q):
         subject_filter,
         has_attachment,
         before_timestamp,
+        after_timestamp,
     )
 
 
@@ -390,6 +404,7 @@ async def list_threads(
         subject_filter,
         has_attachment,
         before_timestamp,
+        after_timestamp,
     ) = parse_search_query(q)
 
     async with aiosqlite.connect(DABA) as db:
@@ -419,6 +434,9 @@ async def list_threads(
         if before_timestamp:
             sql += " AND m.timestamp < ?"
             params.append(before_timestamp)
+        if after_timestamp:
+            sql += " AND m.timestamp > ?"
+            params.append(after_timestamp)
 
         if fts_terms:
             raw_fts = " ".join(fts_terms)

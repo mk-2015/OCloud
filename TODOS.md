@@ -12,11 +12,4 @@
 		Trying to fix ...
 
 # TODOS
-- **Implementation**
-	- File:
-		- server/omail.py
-	- What?
-		* Implement UI
-		* Add Documentation
-	- Description
-		Adding documentation to omail for workspace and UI for it
+- None

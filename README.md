@@ -40,6 +40,7 @@ Edit `server/config.json` before starting. See [Configuration Reference](docs/co
 - [Extensors](docs/extendors.md)
 - [API Reference](docs/api.md)
 - [Custom OS For OCloud Homelab](./docs/install-os.md)
+- [OWorkspace](docs/workspace/oworkspace.md)
 
 ## License
 

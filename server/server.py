@@ -156,6 +156,7 @@ if config.get("oworkspace", {}).get("use"):
     print("[WARNING] oworkspace is experimental.")
     from modules.oworkspace import Rworkspace, init_oworkspace
     from modules.omail import Mailer, init_omail
+    from modules.oconnect import OConnect, init_oconnect
 
     init_omail(
         config.get("oworkspace", {}).get("omail").get("domain", "opencloud.local")
@@ -163,6 +164,7 @@ if config.get("oworkspace", {}).get("use"):
     init_oworkspace()
     app.include_router(Rworkspace)
     app.include_router(Mailer)
+    app.include_router(OConnect)
 
 if config["extendors"]["iplocate"]:
     print('[Extendor] extendor "iplocate" is on.')
