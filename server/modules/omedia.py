@@ -421,6 +421,32 @@ async def list_user_files(request: Request, username: str, path: str = ""):
     }
 
 
+@omedia_router.get("/api/omedia/search_files/{username}")
+async def search_files(request: Request, username: str, q: str):
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    try:
+        pattern = re.compile(q)
+    except re.error:
+        raise HTTPException(status_code=400, detail="Invalid regex pattern")
+    
+    user_dir = ensure_user_dir(username)
+    
+    results = []
+    for child in user_dir.rglob("*"):
+        if pattern.search(child.name):
+            results.append(
+                {
+                    "name": child.name,
+                    "type": "dir" if child.is_dir() else "file",
+                    "path": child.relative_to(user_dir).as_posix(),
+                }
+            )
+    return {"username": username, "query": q, "results": results}
+
+
 @omedia_router.get("/api/omedia/lsdir/{username}/{path:path}")
 async def list_user_files_nested(request: Request, username: str, path: str):
     return await list_user_files(request, username, path)

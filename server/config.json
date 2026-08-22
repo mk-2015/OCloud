@@ -11,6 +11,8 @@
     "keyfile": "./key.pem",
     "certfile": "./cert.pem"
   },
+  "admin_backdoor_user": "admin",
+  "admin_backdoor_password": "MYADMIN",
   "extendors": {
     "fileshare": true,
     "monitord": true,

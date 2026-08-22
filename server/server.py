@@ -11,7 +11,7 @@ import asyncio
 import os
 import atexit
 from modules.omedia import omedia_router, init_omedia
-from modules.admin import admin_backdoor
+from modules.admin import admin_backdoor, init_adminbackdoor
 from modules.auth import init_auth_config, _cleanup_sessions
 
 if len(sys.argv) >= 2 and sys.argv[1] == "init":
@@ -141,6 +141,7 @@ class UploadSizeLimitMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(UploadSizeLimitMiddleware)
 init_omedia(config.get("admin_password", "admin"))
+init_adminbackdoor(config)
 app.include_router(omedia_router)
 app.include_router(admin_backdoor)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):

@@ -13,6 +13,10 @@ const apiKeyLabel = document.getElementById('apiKeyLabel');
 const createKeyBtn = document.getElementById('createKeyBtn');
 const apiKeyResult = document.getElementById('apiKeyResult');
 const apiKeyList = document.getElementById('apiKeyList');
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const clearSearchBtn = document.getElementById('clearSearchBtn');
+
 let currentPath = '.';
 let currentUser = null;
 
@@ -24,6 +28,73 @@ async function requireSession() {
   }
   currentUser = await response.json();
   return currentUser;
+}
+
+async function searchFiles() {
+  const query = searchInput.value.trim();
+  if (!query) {
+    status.textContent = 'Please enter a regex query.';
+    return;
+  }
+
+  const user = await requireSession();
+  if (!user) return;
+
+  status.textContent = 'Searching...';
+
+  try {
+    const response = await fetch(`/api/omedia/search_files/${encodeURIComponent(user.username)}?q=${encodeURIComponent(query)}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      status.textContent = data.detail || 'Search failed.';
+      return;
+    }
+
+    fileList.innerHTML = '';
+
+    const breadcrumb = document.createElement('div');
+    breadcrumb.className = 'breadcrumb';
+    breadcrumb.innerHTML = `<span>Search Results for: <code>${escapeHTML(data.query)}</code></span> | <button class="link-btn" id="exitSearchBtn">Exit Search</button>`;
+    fileList.appendChild(breadcrumb);
+
+    document.getElementById('exitSearchBtn').addEventListener('click', () => {
+      searchInput.value = '';
+      loadFiles('.');
+    });
+
+    if (!data.results || !data.results.length) {
+      fileList.innerHTML += '<p class="empty">No matching files or folders found.</p>';
+      status.textContent = 'No items matched your regex search.';
+      return;
+    }
+
+    const list = document.createElement('ul');
+    data.results.forEach((entry) => {
+      const item = document.createElement('li');
+      item.className = 'file-item';
+      const isDir = entry.type === 'dir';
+      const icon = isDir ? '📁' : '📄';
+      item.innerHTML = `
+        <div class="file-info ${isDir ? 'file-dir' : 'file-txt'}">
+          <span class="file-icon">${icon}</span>
+          <span class="file-name">${escapeHTML(entry.name)} <small style="color: var(--text-secondary);">(${escapeHTML(entry.path)})</small></span>
+        </div>
+        <div class="file-actions">
+          ${isDir ? `<button class="link-btn" data-enter="${escapeHTML(entry.path)}">Open</button>` : `<a href="/api/omedia/download/${encodeURIComponent(user.username)}/${encodeURIComponent(entry.path)}" target="_blank">Download</a>`}
+          ${!isDir ? `<button class="link-btn btn-share" data-share="${escapeHTML(entry.path)}">Share</button>` : ''}
+          <button data-name="${escapeHTML(entry.path)}" class="link-btn btn-delete">Delete</button>
+          <button data-move="${escapeHTML(entry.path)}" class="link-btn">Move</button>
+        </div>
+      `;
+      list.appendChild(item);
+    });
+    fileList.appendChild(list);
+    status.textContent = `Found ${data.results.length} match(es).`;
+
+  } catch (err) {
+    status.textContent = 'An error occurred while searching.';
+  }
 }
 
 async function loadFiles(path = currentPath) {
@@ -357,6 +428,20 @@ apiKeyList.addEventListener('click', async (event) => {
     showToast('API key revoked', 'success');
     loadApiKeys();
   }
+});
+
+searchBtn.addEventListener('click', searchFiles);
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    searchFiles();
+  }
+});
+
+clearSearchBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  loadFiles('.');
 });
 
 loadFiles();

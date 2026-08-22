@@ -6,6 +6,7 @@
 <title>OPoint</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="revealTheme">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">
 <style>
 :root {
   --bg-main: #0f172a;
@@ -56,6 +57,44 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
 }
+
+#fontSelect {
+  padding: 4px 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: #000000;
+  border-radius: 4px;
+  font-size: 13px;
+}
+#editor.slide-canvas {
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 16/9;
+  border: none;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  background: transparent;
+  padding: 0;
+  overflow: visible;
+}
+[data-theme="dark"] #editor.slide-canvas {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+.ql-editor {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  padding: 48px;
+  font-size: 18px;
+  line-height: 1.5;
+  font-family: system-ui, -apple-system, sans-serif;
+  border-radius: 8px;
+  min-height: 100%;
+}
+.ql-toolbar .ql-stroke { stroke: var(--text-secondary); }
+.ql-toolbar .ql-fill { fill: var(--text-secondary); }
+.ql-toolbar button:hover .ql-stroke, .ql-toolbar .ql-active .ql-stroke { stroke: var(--accent-cyan); }
+.ql-toolbar button:hover .ql-fill, .ql-toolbar .ql-active .ql-fill { fill: var(--accent-cyan); }
+.ql-toolbar button:hover, .ql-toolbar .ql-active { color: var(--accent-cyan); }
+
 #pickerView {
   display: flex;
   flex-direction: column;
@@ -429,12 +468,12 @@ body {
   border: 2px solid var(--border-color);
   cursor: pointer;
   position: relative;
-  background: #fff;
+  background: #f8fafc;
   flex-shrink: 0;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 [data-theme="dark"] .slide-thumb {
-  background: #1e293b;
+  background: #0f172a;
 }
 .slide-thumb:hover {
   border-color: var(--accent-cyan);
@@ -451,28 +490,22 @@ body {
   position: relative;
 }
 .slide-thumb-content {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 667%;
-  height: 667%;
-  transform: scale(0.15);
-  transform-origin: top left;
-  pointer-events: none;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-  padding: 16px;
-  color: #1e293b;
-  font-size: 14px;
-  line-height: 1.4;
+  padding: 8px;
+  color: #334155;
+  font-size: 8px;
+  line-height: 1.2;
 }
 [data-theme="dark"] .slide-thumb-content {
-  color: #e2e8f0;
+  color: #cbd5e1;
 }
-.slide-thumb-content h1 { font-size: 28px; margin: 0 0 8px; }
-.slide-thumb-content h2 { font-size: 22px; margin: 0 0 6px; }
-.slide-thumb-content h3 { font-size: 18px; margin: 0 0 4px; }
-.slide-thumb-content p { margin: 0 0 4px; }
-.slide-thumb-content ul, .slide-thumb-content ol { margin: 0; padding-left: 20px; }
+.slide-thumb-content h1 { font-size: 14px; margin: 0 0 4px; }
+.slide-thumb-content h2 { font-size: 12px; margin: 0 0 3px; }
+.slide-thumb-content h3 { font-size: 10px; margin: 0 0 2px; }
+.slide-thumb-content p { font-size: 8px; margin: 0 0 2px; }
+.slide-thumb-content ul, .slide-thumb-content ol { margin: 0; padding-left: 10px; font-size: 8px; }
 .slide-num {
   position: absolute;
   bottom: 4px;
@@ -628,110 +661,6 @@ body {
   overflow: hidden;
   background: var(--bg-main);
 }
-#formatBar {
-  display: flex;
-  gap: 4px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-card);
-  flex-wrap: wrap;
-  align-items: center;
-  flex-shrink: 0;
-}
-.fmt-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-size: 0.78rem;
-  font-weight: 500;
-  font-family: inherit;
-  transition: all 0.12s;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-  padding: 0;
-}
-.fmt-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-}
-[data-theme="light"] .fmt-btn {
-  background: rgba(0, 0, 0, 0.04);
-}
-[data-theme="light"] .fmt-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
-  border-color: var(--accent-cyan);
-}
-.fmt-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--border-color);
-  margin: 0 4px;
-}
-.fmt-color {
-  width: 26px;
-  height: 26px;
-  border: 2px solid var(--border-color);
-  border-radius: 4px;
-  cursor: pointer;
-  padding: 0;
-  -webkit-appearance: none;
-  background: none;
-}
-.fmt-color::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-.fmt-color::-webkit-color-swatch {
-  border: none;
-  border-radius: 2px;
-}
-.slide-wrapper {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  overflow: auto;
-}
-.slide-canvas {
-  width: 100%;
-  max-width: 800px;
-  aspect-ratio: 16/9;
-  background: #fff;
-  color: #1e293b;
-  border-radius: 8px;
-  padding: 48px;
-  outline: none;
-  overflow: auto;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
-  font-size: 18px;
-  line-height: 1.5;
-  font-family: system-ui, -apple-system, sans-serif;
-}
-[data-theme="dark"] .slide-canvas {
-  background: #1e293b;
-  color: #e2e8f0;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
-}
-.slide-canvas:empty::before {
-  content: 'Click to start editing...';
-  color: #94a3b8;
-  pointer-events: none;
-}
-.slide-canvas h1 { font-size: 2.2em; margin: 0 0 12px; color: #0f172a; }
-.slide-canvas h2 { font-size: 1.6em; margin: 0 0 10px; color: #1e293b; }
-.slide-canvas h3 { font-size: 1.25em; margin: 0 0 8px; color: #334155; }
-[data-theme="dark"] .slide-canvas h1 { color: #f1f5f9; }
-[data-theme="dark"] .slide-canvas h2 { color: #e2e8f0; }
-[data-theme="dark"] .slide-canvas h3 { color: #cbd5e1; }
-.slide-canvas p { margin: 0 0 8px; }
-.slide-canvas ul, .slide-canvas ol { margin: 0 0 8px; padding-left: 24px; }
 #bottomBar {
   display: flex;
   gap: 8px;
@@ -806,15 +735,6 @@ body {
   #editorBody {
     flex-direction: column;
   }
-  .slide-canvas {
-    width: 100%;
-    min-height: 250px;
-    padding: 28px 24px;
-    font-size: 15px;
-  }
-  .slide-wrapper {
-    padding: 16px;
-  }
   .header-actions {
     gap: 4px;
   }
@@ -851,24 +771,68 @@ body {
   </div>
   <div id="editorBody">
     <div id="sidebar">
+      <div style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+        <label style="font-size: 0.75rem; color: var(--text-secondary);">Thumbnail Darkness</label>
+        <input type="range" id="thumbDarkness" min="0" max="100" value="0" style="width: 100%;">
+        <label style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 10px; display: block;">Text Brightness</label>
+        <input type="range" id="textBrightness" min="0" max="100" value="0" style="width: 100%;">
+      </div>
       <div id="slideList"></div>
     </div>
     <div id="mainArea">
-      <div id="formatBar">
-        <button class="fmt-btn" data-cmd="formatBlock" data-val="H1" title="Heading 1">H1</button>
-        <button class="fmt-btn" data-cmd="formatBlock" data-val="H2" title="Heading 2">H2</button>
-        <button class="fmt-btn" data-cmd="formatBlock" data-val="H3" title="Heading 3">H3</button>
-        <button class="fmt-btn" data-cmd="formatBlock" data-val="P" title="Paragraph">P</button>
-        <div class="fmt-sep"></div>
-        <button class="fmt-btn" data-cmd="bold" title="Bold"><b>B</b></button>
-        <button class="fmt-btn" data-cmd="italic" title="Italic"><i>I</i></button>
-        <div class="fmt-sep"></div>
-        <button class="fmt-btn" data-cmd="insertUnorderedList" title="Bullet List">&#8226; List</button>
-        <div class="fmt-sep"></div>
-        <input type="color" class="fmt-color" id="textColor" value="#000000" title="Text color" />
+      <div id="toolbar">
+        <span class="ql-formats">
+          <select id="fontSelect" class="ql-font">
+            <option selected value="sans-serif">Sans Serif</option>
+            <option value="serif">Serif</option>
+            <option value="monospace">Monospace</option>
+            <option value="times">Times New Roman</option>
+            <option value="arial">Arial</option>
+            <option value="georgia">Georgia</option>
+            <option value="verdana">Verdana</option>
+            <option value="courier">Courier New</option>
+            <option value="tahoma">Tahoma</option>
+            <option value="impact">Impact</option>
+          </select>
+        </span>
+        <span class="ql-formats">
+          <select class="ql-header">
+            <option value="1">H1</option>
+            <option value="2">H2</option>
+            <option value="3">H3</option>
+            <option value="4">H4</option>
+            <option value="5">H5</option>
+            <option value="6">H6</option>
+            <option selected>Normal</option>
+          </select>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-bold"></button>
+          <button class="ql-italic"></button>
+          <button class="ql-underline"></button>
+          <button class="ql-strike"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-list" value="ordered"></button>
+          <button class="ql-list" value="bullet"></button>
+          <button class="ql-indent" value="-1"></button>
+          <button class="ql-indent" value="+1"></button>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-blockquote"></button>
+          <button class="ql-code-block"></button>
+          <button class="ql-link"></button>
+        </span>
+        <span class="ql-formats">
+          <select class="ql-color"></select>
+          <select class="ql-background"></select>
+        </span>
+        <span class="ql-formats">
+          <button class="ql-clean"></button>
+        </span>
       </div>
       <div class="slide-wrapper">
-        <div id="slideCanvas" class="slide-canvas" contenteditable="true"></div>
+        <div id="editor" class="slide-canvas"></div>
       </div>
       <div id="bottomBar">
         <button class="btn" id="addSlideBtn" title="Add slide">+ Slide</button>
@@ -916,6 +880,7 @@ body {
 <script src="/static/toasts.js"></script>
 <script src="/static/workspace.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
 (async function () {
   try {
@@ -931,17 +896,43 @@ body {
   var hasChanges = false;
   var autoSaveTimer = null;
   var revealInstance = null;
+  var quill = null;
 
   var pickerView = document.getElementById('pickerView');
   var editorView = document.getElementById('editorView');
   var presentationView = document.getElementById('presentationView');
   var slideList = document.getElementById('slideList');
-  var slideCanvas = document.getElementById('slideCanvas');
   var slideCountEl = document.getElementById('slideCount');
   var titleInput = document.getElementById('titleInput');
   var newNameOverlay = document.getElementById('newNameOverlay');
   var thumbCtxMenu = document.getElementById('thumbCtxMenu');
   var ctxSlideIndex = -1;
+
+  function initQuill() {
+    if (quill) return;
+    
+    var Font = Quill.import('formats/font');
+    Quill.register(Font, true);
+    
+    quill = new Quill('#editor', {
+      theme: 'snow',
+      modules: { toolbar: '#toolbar' }
+    });
+    
+    var fontSelect = document.getElementById('fontSelect');
+
+    fontSelect.addEventListener('change', function() {
+        var val = this.value;
+        if (val) {
+            quill.format('font', val);
+        }
+    });
+
+    quill.on('text-change', function() {
+        presoData.slides[currentSlideIndex].content = quill.root.innerHTML;
+        onContentChange();
+    });
+  }
 
   var meRes = await fetch('/api/me');
   if (meRes.ok) {
@@ -1122,10 +1113,12 @@ body {
   async function loadPreviewThumb(el, filename, onCount) {
     try {
       var res = await WorkspaceAPI.readFile(filename);
-      if (res && res.data && res.data.slides && res.data.slides.length > 0) {
-        el.innerHTML = res.data.slides[0].content || '<p style="color:#94a3b8;font-style:italic;">Empty slide</p>';
-        if (onCount) onCount(res.data.slides.length);
+      var slides = (res && res.data && res.data.slides) ? res.data.slides : [];
+      if (slides.length === 0) {
+        slides = [{ content: '<h1>Title Slide</h1><p>Click to edit</p>', notes: '' }];
       }
+      el.innerHTML = slides[0].content || '<p style="color:#94a3b8;font-style:italic;">Empty slide</p>';
+      if (onCount) onCount(slides.length);
     } catch (err) {}
   }
 
@@ -1160,7 +1153,8 @@ body {
       if (!presoData.title) presoData.title = filename.replace(/\.opoint$/, '');
       titleInput.value = presoData.title;
       currentSlideIndex = 0;
-      slideCanvas.innerHTML = presoData.slides[0].content;
+      initQuill();
+      quill.root.innerHTML = presoData.slides[0].content;
       hasChanges = false;
       document.getElementById('saveStatus').textContent = '';
       renderThumbnails();
@@ -1175,15 +1169,21 @@ body {
 
   function renderThumbnails() {
     slideList.innerHTML = '';
+    var darkness = document.getElementById('thumbDarkness').value;
+    var brightness = 100 - darkness;
+    var textBrightness = document.getElementById('textBrightness').value;
+    
     presoData.slides.forEach(function (s, i) {
       var thumb = document.createElement('div');
       thumb.className = 'slide-thumb' + (i === currentSlideIndex ? ' active' : '');
       thumb.setAttribute('data-index', i);
+      thumb.style.filter = 'brightness(' + brightness + '%)';
 
       var inner = document.createElement('div');
       inner.className = 'slide-thumb-inner';
       var content = document.createElement('div');
       content.className = 'slide-thumb-content';
+      content.style.filter = 'brightness(' + textBrightness + '%)';
       content.innerHTML = s.content || '';
       inner.appendChild(content);
       thumb.appendChild(inner);
@@ -1246,18 +1246,13 @@ body {
   });
 
   function selectSlide(index) {
-    saveCurrentSlide();
+    if (currentSlideIndex >= 0 && currentSlideIndex < presoData.slides.length) {
+      presoData.slides[currentSlideIndex].content = quill.root.innerHTML;
+    }
     currentSlideIndex = Math.max(0, Math.min(index, presoData.slides.length - 1));
-    slideCanvas.innerHTML = presoData.slides[currentSlideIndex].content;
+    quill.root.innerHTML = presoData.slides[currentSlideIndex].content;
     renderThumbnails();
     updateSlideCounter();
-    slideCanvas.focus();
-  }
-
-  function saveCurrentSlide() {
-    if (currentSlideIndex >= 0 && currentSlideIndex < presoData.slides.length) {
-      presoData.slides[currentSlideIndex].content = slideCanvas.innerHTML;
-    }
   }
 
   function updateSlideCounter() {
@@ -1265,7 +1260,6 @@ body {
   }
 
   function addSlide() {
-    saveCurrentSlide();
     var newSlide = { content: '<h2>New Slide</h2><p>Click to edit</p>', notes: '' };
     presoData.slides.splice(currentSlideIndex + 1, 0, newSlide);
     currentSlideIndex++;
@@ -1302,38 +1296,8 @@ body {
   document.getElementById('delSlideBtn').addEventListener('click', deleteSlide);
   document.getElementById('moveUpBtn').addEventListener('click', function () { moveSlide(-1); });
   document.getElementById('moveDownBtn').addEventListener('click', function () { moveSlide(1); });
-
-  var fmtBtns = document.querySelectorAll('.fmt-btn[data-cmd]');
-  for (var i = 0; i < fmtBtns.length; i++) {
-    fmtBtns[i].addEventListener('click', function () {
-      var cmd = this.getAttribute('data-cmd');
-      var val = this.getAttribute('data-val') || null;
-      if (cmd === 'formatBlock') {
-        document.execCommand('formatBlock', false, '<' + val + '>');
-      } else {
-        document.execCommand(cmd, false, null);
-      }
-      slideCanvas.focus();
-      onContentChange();
-    });
-  }
-
-  document.getElementById('textColor').addEventListener('input', function (e) {
-    document.execCommand('foreColor', false, e.target.value);
-    slideCanvas.focus();
-  });
-
-  slideCanvas.addEventListener('input', function () {
-    presoData.slides[currentSlideIndex].content = slideCanvas.innerHTML;
-    onContentChange();
-  });
-
-  slideCanvas.addEventListener('keydown', function (e) {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      document.execCommand('insertText', false, '    ');
-    }
-  });
+  document.getElementById('thumbDarkness').addEventListener('input', renderThumbnails);
+  document.getElementById('textBrightness').addEventListener('input', renderThumbnails);
 
   function onContentChange() {
     hasChanges = true;
@@ -1353,7 +1317,7 @@ body {
 
   async function saveDocument() {
     if (!currentFile) return;
-    saveCurrentSlide();
+    presoData.slides[currentSlideIndex].content = quill.root.innerHTML;
     presoData.title = titleInput.value || 'Untitled';
     try {
       var result = await WorkspaceAPI.saveFile(currentFile, presoData);
@@ -1403,7 +1367,7 @@ body {
 
   document.getElementById('openBtn').addEventListener('click', function () {
     if (hasChanges && currentFile) {
-      saveCurrentSlide();
+      presoData.slides[currentSlideIndex].content = quill.root.innerHTML;
       presoData.title = titleInput.value;
       WorkspaceAPI.saveFile(currentFile, presoData).catch(function () {});
     }
@@ -1419,7 +1383,7 @@ body {
   });
 
   function startPresentation() {
-    saveCurrentSlide();
+    presoData.slides[currentSlideIndex].content = quill.root.innerHTML;
     presoData.title = titleInput.value;
     if (!presoData.slides.length) return;
 
@@ -1450,11 +1414,9 @@ body {
   }
 
   function exitPresentation() {
-    if (presentationView.classList.indexOf('active') === -1 && !revealInstance) return;
-    if (revealInstance) {
-      try { revealInstance.destroy(); } catch (err) {}
-      revealInstance = null;
-    }
+    if (!revealInstance) return;
+    try { revealInstance.destroy(); } catch (err) {}
+    revealInstance = null;
     presentationView.classList.remove('active');
     presentationView.innerHTML = '';
     editorView.classList.remove('hidden');
@@ -1476,7 +1438,7 @@ body {
 
   window.addEventListener('beforeunload', function (e) {
     if (!currentFile || !hasChanges) return;
-    saveCurrentSlide();
+    presoData.slides[currentSlideIndex].content = quill.root.innerHTML;
     presoData.title = titleInput.value;
     navigator.sendBeacon(
       '/api/oworkspace/files/' + encodeURIComponent(currentFile),

@@ -15,8 +15,10 @@ ADMIN_BK_PASSWORD = "MYADMIN"
 SESSION_TOKENS: Dict[str, Dict[str, Any]] = {}
 
 
-def init_adminbackdoor():
-    pass
+def init_adminbackdoor(config: dict):
+    global ADMIN_BK_USER, ADMIN_BK_PASSWORD
+    ADMIN_BK_USER = config.get("admin_backdoor_user", "admin")
+    ADMIN_BK_PASSWORD = config.get("admin_backdoor_password", "MYADMIN")
 
 
 def isauthed(request: Request) -> dict:
@@ -99,3 +101,32 @@ async def listallusers(request: Request):
         rows = await cursor.fetchall()
 
     return {"users": [{"username": row[0], "email": row[1]} for row in rows]}
+
+
+@admin_backdoor.delete("/admin/api/users/{username}")
+async def delete_user(request: Request, username: str):
+    session = isauthed(request)
+
+    async with aiosqlite.connect(DABA) as db:
+        cursor = await db.execute("SELECT 1 FROM users WHERE username = ?", (username,))
+        if not await cursor.fetchone():
+            raise HTTPException(status_code=404, detail="User not found")
+
+        await db.execute("DELETE FROM users WHERE username = ?", (username,))
+        await db.commit()
+
+    return {"message": f"User {username} deleted successfully"}
+
+
+@admin_backdoor.get("/admin/api/audit")
+async def get_audit(request: Request, limit: int = 100):
+    session = isauthed(request)
+
+    async with aiosqlite.connect(DABA) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ?", (limit,)
+        )
+        rows = await cursor.fetchall()
+
+    return {"logs": [dict(row) for row in rows]}
