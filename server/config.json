@@ -2,7 +2,7 @@
   "host": "0.0.0.0",
   "port": 443,
   "cube": {
-    "use": false,
+    "use": true,
     "islocal": true,
     "workers": ["tcp://localhost:2350"]
   },

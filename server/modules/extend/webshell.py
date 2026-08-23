@@ -115,21 +115,63 @@ async def _handle_windows(websocket: WebSocket):
             await websocket.close(code=1011, reason="Shell spawn failed")
             return
 
-    async def read_output():
-        try:
-            while True:
-                if pty_obj:
-                    data = await loop.run_in_executor(None, pty_obj.read, True)
-                    if not data:
-                        break
-                    await websocket.send_bytes(data.encode("utf-8", errors="replace"))
+    _read_mode = {"used": None}
+
+    def _pty_read():
+        for attempt in ("sized", "flagged", "plain"):
+            try:
+                if attempt == "sized":
+                    out = pty_obj.read(4096)
+                elif attempt == "flagged":
+                    out = pty_obj.read(True)
                 else:
+                    out = pty_obj.read()
+                if _read_mode["used"] != attempt:
+                    _read_mode["used"] = attempt
+                    print(f"[WEBSHELL] pty read mode locked: {attempt} -> {type(out).__name__}")
+                return out
+            except TypeError:
+                continue
+            except EOFError:
+                print("[WEBSHELL] pty EOF")
+                return None
+            except Exception as e:
+                print(f"[WEBSHELL] pty read error ({attempt}): {type(e).__name__}: {e}")
+                return None
+        return None
+
+    async def read_output():
+        empty_polls = 0
+        sent_bytes = 0
+        try:
+            if pty_obj is None:
+                print("[WEBSHELL] reading via subprocess pipes (no pty)")
+                while True:
                     data = await loop.run_in_executor(None, proc.stdout.read, 4096)
                     if not data:
                         break
                     await websocket.send_bytes(data)
-        except Exception:
-            pass
+                return
+            print("[WEBSHELL] reading via conpty...")
+            while True:
+                data = await loop.run_in_executor(None, _pty_read)
+                if data is None:
+                    break
+                if not data:
+                    empty_polls += 1
+                    if empty_polls % 500 == 0:
+                        print(f"[WEBSHELL] {empty_polls} empty polls, mode={_read_mode['used']}")
+                    await asyncio.sleep(min(0.02 * min(empty_polls, 10), 0.25))
+                    continue
+                empty_polls = 0
+                if isinstance(data, str):
+                    data = data.encode("utf-8", errors="replace")
+                await websocket.send_bytes(data)
+                sent_bytes += len(data)
+                if sent_bytes < 2048 or sent_bytes % 8192 < len(data):
+                    print(f"[WEBSHELL] sent {sent_bytes}B total, sample={data[:60]!r}")
+        except Exception as e:
+            print(f"[WEBSHELL] read_output error: {type(e).__name__}: {e}")
 
     async def read_stderr():
         if proc is None:

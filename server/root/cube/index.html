@@ -678,6 +678,8 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                                 Run File
                             </button>
+                            <input type="number" id="preview-port" value="8080" min="1" max="65535" title="Preview port" disabled style="width: 64px; padding: 4px 6px; font-size: 0.75rem; background: var(--bg-editor); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); outline: none;">
+                            <button class="btn btn-secondary" id="btn-preview" onclick="openPreview()" disabled title="Open preview in new tab" style="padding: 4px 10px; font-size: 0.75rem;">🌐 Preview</button>
                         </div>
                     </div>
                     <div id="editor-container" style="display: flex; align-items: center; justify-content: center; background: var(--bg-editor); color: var(--text-secondary); font-size: 0.9rem;">
@@ -719,6 +721,14 @@
     <script src="/static/theme.js"></script>
     <script>
         let currentLambdaId = null;
+
+        function openPreview() {
+            if (!currentLambdaId) { showNotification("Launch a sandbox first.", "error"); return; }
+            const portInput = document.getElementById("preview-port");
+            const port = parseInt(portInput.value, 10);
+            if (!port || port < 1 || port > 65535) { showNotification("Enter a valid port (1-65535).", "error"); return; }
+            window.open(`/cube/preview/${currentLambdaId}/${port}/`, "_blank");
+        }
         let wsConnection = null;
         let collapsedFolders = new Set();
         let currentFileList = [];
@@ -921,7 +931,9 @@
             window.term.write("Connecting to remote container TTY...\r\n");
             
             const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-            wsConnection = new WebSocket(`${protocol}//${window.location.host}/api/cube/lamblets/${lambdaId}/shell`);
+            const wsToken = localStorage.getItem("omedia_token") || "";
+            const wsAuthQuery = wsToken ? `?token=${encodeURIComponent(wsToken)}` : "";
+            wsConnection = new WebSocket(`${protocol}//${window.location.host}/api/cube/lamblets/${lambdaId}/shell${wsAuthQuery}`);
             wsConnection.binaryType = "arraybuffer";
 
             wsConnection.onopen = function() {
@@ -964,6 +976,9 @@
                 const rows = Math.floor(terminalDiv.clientHeight / 17) - 1;
                 if (cols > 0 && rows > 0) {
                     window.term.resize(cols, rows);
+                    if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+                        wsConnection.send(`\x1b[${rows};${cols}R`);
+                    }
                 }
             }
         }
