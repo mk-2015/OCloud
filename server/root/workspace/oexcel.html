@@ -171,7 +171,7 @@ th{background:var(--header-bg)}
           <div class="export-dropdown-item" data-fmt="json">Download JSON</div>
         </div>
       </div>
-      <button class="btn" id="btnTheme">Theme</button>
+      <button class="btn" id="btnTheme" data-theme-toggle>Theme</button>
     </div>
   </header>
   <div class="toolbar" id="toolbar">
@@ -215,6 +215,7 @@ th{background:var(--header-bg)}
 <script src="/static/utils.js"></script>
 <script src="/static/toasts.js"></script>
 <script src="/static/workspace.js"></script>
+<script src="/static/modal.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 (function(){
@@ -1050,7 +1051,7 @@ async function openFile(name){
 }
 
 async function createNewFile(){
-  var name=prompt('Spreadsheet name:');
+  var name=await showPrompt({title:'New Spreadsheet',message:'Choose a name for your spreadsheet.',placeholder:'Spreadsheet name'});
   if(!name||!name.trim())return;
   var fn=name.trim();
   if(!fn.endsWith('.oexcel'))fn+='.oexcel';
@@ -1065,8 +1066,8 @@ async function createNewFile(){
   }
 }
 
-function handleBack(){
-  if(isDirty&&!confirm('You have unsaved changes. Discard them?'))return;
+async function handleBack(){
+  if(isDirty&&!(await showConfirm({title:'Unsaved Changes',message:'You have unsaved changes. Discard them?',okText:'Discard Changes',danger:true})))return;
   openPicker();
   loadFileList();
 }
@@ -1241,6 +1242,10 @@ function handleGlobalClick(e){
 }
 
 function handleGlobalKeyDown(e){
+  if(e.key==='Escape'){
+    document.getElementById('contextMenu').classList.remove('visible');
+    document.getElementById('exportDropdown').classList.remove('visible');
+  }
   if(e.target.id==='formulaBar'||e.target.id==='docNameInput'||e.target.classList.contains('sheet-tab-rename')||e.target.classList.contains('cell-editor')){
     if(e.target.classList.contains('cell-editor')&&e.key==='Enter'){
       e.preventDefault();
@@ -1365,13 +1370,34 @@ function handleGlobalKeyDown(e){
 
 function parseCSV(text){
   var rows=[];
-  var lines=text.split('\n');
-  for(var i=0;i<lines.length;i++){
-    if(!lines[i].trim())continue;
-    var cells=lines[i].split(',');
-    rows.push(cells.map(function(c){return c.trim().replace(/^"(.*)"$/,'$1');}));
+  var row=[];
+  var field='';
+  var inQuotes=false;
+  for(var i=0;i<text.length;i++){
+    var ch=text.charAt(i);
+    if(inQuotes){
+      if(ch==='"'){
+        if(text.charAt(i+1)==='"'){field+='"';i++;}
+        else{inQuotes=false;}
+      }else{
+        field+=ch;
+      }
+    }else if(ch==='"'){
+      inQuotes=true;
+    }else if(ch===','){
+      row.push(field);field='';
+    }else if(ch==='\n'){
+      row.push(field);field='';
+      rows.push(row);row=[];
+    }else if(ch!=='\r'){
+      field+=ch;
+    }
   }
-  return rows;
+  if(field!==''||row.length){
+    row.push(field);
+    rows.push(row);
+  }
+  return rows.filter(function(r){return r.some(function(c){return c!=='';});});
 }
 
 function csvRowsToWorkbook(rows){
@@ -1484,9 +1510,6 @@ function initEventListeners(){
   document.getElementById('contextMenu').addEventListener('click',handleContextMenuClick);
   document.getElementById('btnSave').addEventListener('click',function(){
     if(currentFileName)saveFile();
-  });
-  document.getElementById('btnTheme').addEventListener('click',function(){
-    toggleTheme();
   });
   document.getElementById('btnExport').addEventListener('click',function(e){
     e.stopPropagation();

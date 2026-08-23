@@ -203,6 +203,30 @@
       cursor: pointer;
       transition: all 0.2s;
       text-align: center;
+      position: relative;
+    }
+
+    .file-card-delete {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 6px;
+      border-radius: 6px;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+    }
+
+    .file-card:hover .file-card-delete {
+      opacity: 1;
+    }
+
+    .file-card-delete:hover {
+      color: #f43f5e;
     }
 
     .file-card:hover {
@@ -449,6 +473,17 @@
       border-radius: 8px;
     }
 
+    .ql-font-sans-serif { font-family: system-ui, -apple-system, sans-serif; }
+    .ql-font-serif { font-family: Georgia, 'Times New Roman', serif; }
+    .ql-font-monospace { font-family: 'Fira Code', 'Courier New', monospace; }
+    .ql-font-times { font-family: 'Times New Roman', Times, serif; }
+    .ql-font-arial { font-family: Arial, Helvetica, sans-serif; }
+    .ql-font-georgia { font-family: Georgia, serif; }
+    .ql-font-verdana { font-family: Verdana, Geneva, sans-serif; }
+    .ql-font-courier { font-family: 'Courier New', Courier, monospace; }
+    .ql-font-tahoma { font-family: Tahoma, Geneva, sans-serif; }
+    .ql-font-impact { font-family: Impact, Charcoal, sans-serif; }
+
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
@@ -682,12 +717,12 @@
             <option value="impact">Impact</option>
           </select>
           <span id="sizeControl" style="display: inline-flex; align-items: center; gap: 2px; margin-left: 5px;">
-              <input type="text" id="sizeInput" value="16px" style="width: 35px; height: 24px; padding: 2px; border: 1px solid var(--border-color); background: var(--bg-card); color: #000000; border-radius: 4px; font-size: 12px;">
-              <select id="sizeSelect" style="height: 24px; border: 1px solid var(--border-color); background: var(--bg-card); color: #000000; border-radius: 4px; font-size: 12px;">
-                <option value="12px" style="color: #000000;">12px</option>
-                <option selected value="16px" style="color: #000000;">16px</option>
-                <option value="24px" style="color: #000000;">24px</option>
-                <option value="32px" style="color: #000000;">32px</option>
+              <input type="text" id="sizeInput" value="16px" style="width: 35px; height: 24px; padding: 2px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); border-radius: 4px; font-size: 12px;">
+              <select id="sizeSelect" style="height: 24px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); border-radius: 4px; font-size: 12px;">
+                <option value="12px">12px</option>
+                <option selected value="16px">16px</option>
+                <option value="24px">24px</option>
+                <option value="32px">32px</option>
               </select>
           </span>
           <select class="ql-header">
@@ -734,6 +769,7 @@
   <script src="/static/utils.js"></script>
   <script src="/static/toasts.js"></script>
   <script src="/static/workspace.js"></script>
+  <script src="/static/modal.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
   <script>
     (function () {
@@ -926,6 +962,21 @@
             card.addEventListener('click', function () {
               openDocument(card.dataset.file);
             });
+            var delBtn = document.createElement('button');
+            delBtn.className = 'file-card-delete';
+            delBtn.textContent = '\uD83D\uDDD1';
+            delBtn.title = 'Delete document';
+            delBtn.addEventListener('click', async function (e) {
+              e.stopPropagation();
+              var ok = await showConfirm({ title: 'Delete Document', message: 'Delete "' + displayName + '"? This cannot be undone.', okText: 'Delete', danger: true });
+              if (!ok) return;
+              ok = await WorkspaceAPI.deleteFile(f.filename);
+              if (ok) {
+                showToast('Document deleted', 'success');
+                loadFileList();
+              }
+            });
+            card.appendChild(delBtn);
             fileGrid.appendChild(card);
           });
         } catch (e) {
@@ -946,28 +997,11 @@
         window.history.replaceState({}, '', window.location.pathname);
       }
 
-      function formatSize(bytes) {
-        if (!bytes) return '';
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-        return (bytes / 1048576).toFixed(1) + ' MB';
-      }
-
-      function formatDate(ts) {
-        if (!ts) return '';
-        var d;
-        if (typeof ts === 'number') {
-          d = ts > 1e11 ? new Date(ts) : new Date(ts * 1000);
-        } else {
-          d = new Date(ts);
-        }
-        return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
-
       async function openDocument(filename) {
         try {
           if (hasChanges && currentFile) {
-            if (!confirm('Unsaved changes will be lost. Continue?')) return;
+            var goOn = await showConfirm({ title: 'Unsaved Changes', message: 'Unsaved changes will be lost. Continue?', okText: 'Discard Changes', danger: true });
+            if (!goOn) return;
           }
           var res = await WorkspaceAPI.readFile(filename);
           if (!res) {
@@ -994,8 +1028,9 @@
 
       function initQuill() {
         if (quill) return;
-        
+
         var Font = Quill.import('formats/font');
+        Font.whitelist = ['sans-serif', 'serif', 'monospace', 'times', 'arial', 'georgia', 'verdana', 'courier', 'tahoma', 'impact'];
         Quill.register(Font, true);
         var Size = Quill.import('attributors/style/size');
         Size.whitelist = ['12px', '16px', '24px', '32px'];
@@ -1083,7 +1118,7 @@
 
       async function createDocument() {
         try {
-          var name = prompt('Document name:');
+          var name = await showPrompt({ title: 'New Document', message: 'Choose a name for your document.', placeholder: 'Document name' });
           if (!name || !name.trim()) return;
           var docName = name.trim();
           if (!docName.endsWith('.odoc')) docName += '.odoc';
@@ -1120,9 +1155,9 @@
         }
       }
 
-      function handleBack() {
+      async function handleBack() {
         if (hasChanges) {
-          if (!confirm('You have unsaved changes. Discard them?')) return;
+          if (!(await showConfirm({ title: 'Unsaved Changes', message: 'You have unsaved changes. Discard them?', okText: 'Discard Changes', danger: true }))) return;
         }
         showPicker();
         loadFileList();
@@ -1144,6 +1179,12 @@
           e.preventDefault();
           if (currentFile) saveDocument();
         }
+      });
+
+      window.addEventListener('beforeunload', function (e) {
+        if (!hasChanges || !currentFile) return;
+        e.preventDefault();
+        e.returnValue = '';
       });
 
       init();

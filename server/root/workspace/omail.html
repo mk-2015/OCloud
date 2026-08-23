@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/omail.css">
     <script src="/static/utils.js"></script>
+    <script src="/static/toasts.js"></script>
 </head>
 <body>
     <div class="omail-container">
@@ -92,23 +93,26 @@
             document.execCommand(command, false, null);
         }
 
-        function createLink() {
+        async function createLink() {
             const editor = document.getElementById('body');
             const selection = window.getSelection();
-            
+
             if (selection.rangeCount === 0 || selection.toString().length === 0) {
-                alert('Please highlight the text you want to turn into a link first.');
+                showToast('Highlight the text to link first.', 'error');
                 return;
             }
-            
+
+            const range = selection.getRangeAt(0);
+            const url = await showPrompt({ title: 'Insert Link', message: 'Enter the URL for the selected text:', placeholder: 'https://example.com' });
+            if (!url) return;
+
             editor.focus();
-            const url = prompt('Enter the URL for the selected text:');
-            if (url) {
-                document.execCommand('createLink', false, url);
-                const link = selection.anchorNode.parentElement;
-                if (link && link.tagName === 'A') {
-                    link.target = '_blank';
-                }
+            selection.removeAllRanges();
+            selection.addRange(range);
+            document.execCommand('createLink', false, url);
+            const anchor = selection.anchorNode ? selection.anchorNode.parentElement : null;
+            if (anchor && anchor.tagName === 'A') {
+                anchor.target = '_blank';
             }
         }
 
@@ -156,16 +160,31 @@
                     const item = document.createElement('div');
                     item.className = 'thread-item';
                     const isStarred = t.labels && t.labels.includes('STARRED');
-                    
-                    item.innerHTML = `
-                        <span class="star ${isStarred ? 'starred' : ''}" onclick="toggleStar(event, '${t.id}', ${isStarred})">★</span>
-                        <div class="thread-info">
-                            <div class="thread-subject">${t.subject || '(No Subject)'}</div>
-                            <div class="thread-snippet">${t.snippet || ''}</div>
-                        </div>
-                        <small class="thread-date">${new Date((t.last_message_timestamp || 0) * 1000).toLocaleDateString()}</small>
-                    `;
-                    
+
+                    const star = document.createElement('span');
+                    star.className = 'star' + (isStarred ? ' starred' : '');
+                    star.textContent = '\u2605';
+                    star.addEventListener('click', (e) => toggleStar(e, t.id, isStarred));
+
+                    const info = document.createElement('div');
+                    info.className = 'thread-info';
+                    const subj = document.createElement('div');
+                    subj.className = 'thread-subject';
+                    subj.textContent = t.subject || '(No Subject)';
+                    const snip = document.createElement('div');
+                    snip.className = 'thread-snippet';
+                    snip.textContent = t.snippet || '';
+                    info.appendChild(subj);
+                    info.appendChild(snip);
+
+                    const dateEl = document.createElement('small');
+                    dateEl.className = 'thread-date';
+                    dateEl.textContent = new Date((t.last_message_timestamp || 0) * 1000).toLocaleDateString();
+
+                    item.appendChild(star);
+                    item.appendChild(info);
+                    item.appendChild(dateEl);
+
                     item.onclick = (e) => {
                         if (e.target.classList.contains('star')) return;
                         document.querySelectorAll('.thread-item').forEach(el => el.classList.remove('active'));
@@ -202,7 +221,7 @@
                         <button class="btn btn-secondary" onclick="toggleReadStatus('${firstMsgId}')">Toggle Read</button>
                         <button class="btn btn-secondary" onclick="trashThread('${id}')">Trash</button>
                     </div>
-                    <h2 class="viewer-subject">${data.subject || '(No Subject)'}</h2>
+                    <h2 class="viewer-subject">${escapeHTML(data.subject || '(No Subject)')}</h2>
                 `;
 
                 data.messages.forEach(m => {
@@ -217,8 +236,8 @@
                     viewer.innerHTML += `
                         <div class="mail-message">
                             <div class="mail-header">
-                                <div><strong>From:</strong> ${m.sender || ''}</div>
-                                <div><strong>To:</strong> ${m.recipient || ''}</div>
+                                <div><strong>From:</strong> ${escapeHTML(m.sender || '')}</div>
+                                <div><strong>To:</strong> ${escapeHTML(m.recipient || '')}</div>
                                 <small>${new Date((m.timestamp || 0) * 1000).toLocaleString()}</small>
                             </div>
                             <div class="mail-body">${m.body_html || m.body_plain || ''}</div>
@@ -309,25 +328,30 @@
                 data: await getFileBase64(f)
             })));
 
-            const res = await fetch('/api/mail/messages/send', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': getCsrf()
-                },
-                body: JSON.stringify({to, subject, body_html: body, body_plain: body.replace(/<[^>]*>?/gm, ''), attachments})
-            });
-            
-            if (res.ok) {
-                closeCompose();
-                document.getElementById('to').value = '';
-                document.getElementById('subject').value = '';
-                document.getElementById('body').innerHTML = '';
-                selectedFiles = [];
-                updateAttachmentUI();
-                loadThreads();
-            } else {
-                alert('Failed to send message.');
+            try {
+                const res = await fetch('/api/mail/messages/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCsrf()
+                    },
+                    body: JSON.stringify({to, subject, body_html: body, body_plain: body.replace(/<[^>]*>?/gm, ''), attachments})
+                });
+
+                if (res.ok) {
+                    showToast('Message sent', 'success');
+                    closeCompose();
+                    document.getElementById('to').value = '';
+                    document.getElementById('subject').value = '';
+                    document.getElementById('body').innerHTML = '';
+                    selectedFiles = [];
+                    updateAttachmentUI();
+                    loadThreads();
+                } else {
+                    showToast('Failed to send message.', 'error');
+                }
+            } catch (err) {
+                showToast('Failed to send message.', 'error');
             }
         }
 
@@ -337,11 +361,20 @@
                 const labels = await res.json();
                 const list = document.getElementById('labelList');
                 if (Array.isArray(labels)) {
-                    list.innerHTML = labels.map(l => `
-                        <div class="sidebar-item" onclick="switchFolder('label:${l.name.toUpperCase()}', this)">
-                            <span>🏷</span> ${l.name}
-                        </div>
-                    `).join('');
+                    list.innerHTML = '';
+                    labels.forEach(l => {
+                        const el = document.createElement('div');
+                        el.className = 'sidebar-item';
+                        const icon = document.createElement('span');
+                        icon.textContent = '\uD83C\uDFF7 ';
+                        const nameSpan = document.createElement('span');
+                        nameSpan.textContent = l.name;
+                        el.appendChild(icon);
+                        el.appendChild(nameSpan);
+                        const folder = 'label:' + String(l.name || '').toUpperCase();
+                        el.addEventListener('click', () => switchFolder(folder, el));
+                        list.appendChild(el);
+                    });
                 }
             } catch (err) {
                 console.error('Failed to load labels', err);
@@ -375,7 +408,7 @@
                 }
 
                 if (messageIds.length === 0) {
-                    alert('Could not resolve messages to trash.');
+                    showToast('Could not resolve messages to trash.', 'error');
                     return;
                 }
                 
@@ -415,7 +448,11 @@
             document.getElementById('body').innerHTML = `<br><br>---------- Forwarded message ---------<br>From: ${lastMsg.sender}<br>Body: ${lastMsg.body_html || lastMsg.body_plain}`;
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/me');
+                if (!res.ok) { window.location.href = '/login.html'; return; }
+            } catch (err) { window.location.href = '/login.html'; return; }
             loadThreads();
             loadLabels();
         });

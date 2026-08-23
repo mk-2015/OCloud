@@ -11,6 +11,10 @@ const WorkspaceAPI = (() => {
     }
     const res = await fetch(url, { ...defaults, ...opts, headers: { ...defaults.headers, ...opts.headers } });
     if (!res.ok) {
+      if (res.status === 401 && typeof window !== 'undefined') {
+        window.location.href = '/login.html';
+        return null;
+      }
       let detail = `HTTP ${res.status}`;
       try { const j = await res.json(); detail = j.detail || j.error || detail; } catch {}
       if (typeof showToast === 'function') showToast(detail, 'error');

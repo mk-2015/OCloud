@@ -7,6 +7,7 @@ ODocs is a rich-text document editor designed for collaborative and personal doc
 - **Persistence:** Features real-time auto-saving with a 5-second debounce to ensure no data loss.
 - **File Management:** Create, open, rename, and delete documents (`.odoc` files).
 - **Import Support:** Import text files from OMedia or the local disk.
+- **Safety:** Warns about unsaved changes when leaving the app, with automatic 5-second-debounced saving.
 
 ## Technical Details
 - **Frontend:** Located at `root/workspace/odocs.html`.

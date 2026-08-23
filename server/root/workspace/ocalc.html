@@ -216,7 +216,7 @@
   }
 
   .calc-btn.equals {
-    grid-column: span 4;
+    grid-column: span 3;
     background: linear-gradient(135deg, var(--accent-cyan), #0891b2);
     color: white;
     font-weight: 600;
@@ -461,6 +461,7 @@
     <button data-action="decimal" class="calc-btn">.</button>
     <button data-action="op" data-value="+" class="calc-btn op">+</button>
 
+    <button data-action="percent" class="calc-btn func">%</button>
     <button data-action="equals" class="calc-btn equals">=</button>
   </div>
   <div class="history">
@@ -495,20 +496,29 @@
   var history = [];
   var justEvaluated = false;
   var MAX_HISTORY = 10;
+  var HISTORY_KEY = 'ocalc_history';
 
   var exprLine = document.getElementById('exprLine');
   var resultLine = document.getElementById('resultLine');
   var historyList = document.getElementById('historyList');
   var buttonsContainer = document.querySelector('.buttons');
-  var themeToggle = document.getElementById('themeToggle');
   var clearHistoryBtn = document.getElementById('clearHistory');
   var importBtn = document.getElementById('importBtn');
   var importInput = document.getElementById('importInput');
 
-  function escapeHTML(str) {
-    var div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
-    return div.innerHTML;
+  function persistHistory() {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (e) {}
+  }
+
+  function loadHistory() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      if (Array.isArray(saved)) {
+        history = saved.filter(function (h) {
+          return h && typeof h.expr === 'string' && typeof h.result === 'string';
+        }).slice(0, MAX_HISTORY);
+      }
+    } catch (e) {}
   }
 
   function formatNumber(n) {
@@ -653,6 +663,7 @@
     if (history.length > MAX_HISTORY) {
       history.pop();
     }
+    persistHistory();
     renderHistory();
     expression = '';
     displayExpr = '';
@@ -829,21 +840,9 @@
     }
   });
 
-  themeToggle.addEventListener('click', function() {
-    if (typeof toggleTheme === 'function') {
-      toggleTheme();
-    } else {
-      var html = document.documentElement;
-      var current = html.getAttribute('data-theme');
-      var next = current === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', next);
-      themeToggle.textContent = next === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
-      try { localStorage.setItem('theme', next); } catch (e) {}
-    }
-  });
-
   clearHistoryBtn.addEventListener('click', function() {
     history = [];
+    persistHistory();
     renderHistory();
     if (typeof showToast === 'function') {
       showToast('History cleared', 'info');
@@ -873,6 +872,7 @@
       if (history.length > MAX_HISTORY) {
         history.length = MAX_HISTORY;
       }
+      persistHistory();
       renderHistory();
       if (typeof showToast === 'function') {
         showToast('Imported ' + imported + ' expression' + (imported !== 1 ? 's' : ''), 'info');
@@ -882,18 +882,8 @@
     importInput.value = '';
   });
 
-  function initTheme() {
-    try {
-      var saved = localStorage.getItem('theme');
-      if (saved) {
-        document.documentElement.setAttribute('data-theme', saved);
-        themeToggle.textContent = saved === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
-      }
-    } catch (e) {}
-  }
-
   function init() {
-    initTheme();
+    loadHistory();
     renderHistory();
     updateDisplay();
   }

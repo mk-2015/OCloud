@@ -752,7 +752,7 @@ body {
     <h1>OPoint Presentations</h1>
     <button class="picker-import-btn" id="importOMediaBtn" title="Import text file from OMedia">&#128196; Import from OMedia</button>
     <button class="picker-import-btn" id="importDiskBtn" title="Open text file from disk">&#128193; Open from Disk</button>
-    <button id="pickerThemeBtn" title="Toggle theme"></button>
+    <button id="pickerThemeBtn" title="Toggle theme" data-theme-toggle></button>
   </div>
   <div id="pickerGrid"></div>
 </div>
@@ -766,7 +766,7 @@ body {
       <button class="btn" id="openBtn" title="Open file">Open</button>
       <button class="btn btn-primary" id="saveBtn" title="Save">Save</button>
       <button class="btn btn-primary" id="presentBtn" title="Present">Present</button>
-      <button class="btn" id="themeToggle" title="Toggle theme"></button>
+      <button class="btn" id="themeToggle" title="Toggle theme" data-theme-toggle></button>
     </div>
   </div>
   <div id="editorBody">
@@ -879,6 +879,7 @@ body {
 <script src="/static/utils.js"></script>
 <script src="/static/toasts.js"></script>
 <script src="/static/workspace.js"></script>
+<script src="/static/modal.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
 <script>
@@ -979,20 +980,11 @@ body {
     });
   }
 
-  function updateThemeButtons() {
-    var t = document.documentElement.getAttribute('data-theme');
-    var icon = t === 'dark' ? '\u{1F319}' : '\u2600\uFE0F';
-    document.getElementById('pickerThemeBtn').textContent = icon;
-    document.getElementById('themeToggle').textContent = icon;
-  }
-
   function syncTheme() {
-    updateThemeButtons();
     renderThumbnails();
   }
 
-  document.getElementById('pickerThemeBtn').addEventListener('click', function () { toggleTheme(); syncTheme(); });
-  document.getElementById('themeToggle').addEventListener('click', function () { toggleTheme(); syncTheme(); });
+  window.addEventListener('themechange', syncTheme);
 
   function formatSize(bytes) {
     if (!bytes) return '';
@@ -1089,7 +1081,8 @@ body {
         delBtn.title = 'Delete';
         delBtn.addEventListener('click', async function (e) {
           e.stopPropagation();
-          if (!confirm('Delete "' + displayName + '"?')) return;
+          var ok = await showConfirm({ title: 'Delete Presentation', message: 'Delete "' + displayName + '"?', okText: 'Delete', danger: true });
+          if (!ok) return;
           await WorkspaceAPI.deleteFile(f.filename);
           loadPicker();
         });
@@ -1107,7 +1100,9 @@ body {
           metaSpan.textContent = (count > 0 ? count + ' slides \u00b7 ' : '') + meta;
         }).catch(function () {});
       });
-    } catch (err) {}
+    } catch (err) {
+      showToast('Failed to load presentations', 'error');
+    }
   }
 
   async function loadPreviewThumb(el, filename, onCount) {
@@ -1374,10 +1369,11 @@ body {
     showPicker();
   });
 
-  document.getElementById('backBtn').addEventListener('click', function (e) {
+  document.getElementById('backBtn').addEventListener('click', async function (e) {
     e.preventDefault();
     if (hasChanges && currentFile) {
-      if (!confirm('You have unsaved changes. Discard them?')) return;
+      var goOn = await showConfirm({ title: 'Unsaved Changes', message: 'You have unsaved changes. Discard them?', okText: 'Discard Changes', danger: true });
+      if (!goOn) return;
     }
     showPicker();
   });
@@ -1439,15 +1435,18 @@ body {
   window.addEventListener('beforeunload', function (e) {
     if (!currentFile || !hasChanges) return;
     presoData.slides[currentSlideIndex].content = quill.root.innerHTML;
-    presoData.title = titleInput.value;
-    navigator.sendBeacon(
-      '/api/oworkspace/files/' + encodeURIComponent(currentFile),
-      new Blob([JSON.stringify({ data: presoData })], { type: 'application/json' })
-    );
+    presoData.title = titleInput.value || 'Untitled';
+    try {
+      fetch('/api/oworkspace/files/' + encodeURIComponent(currentFile), {
+        method: 'PUT',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': getCsrfToken() },
+        body: JSON.stringify({ data: presoData })
+      });
+    } catch (err) {}
+    e.preventDefault();
     e.returnValue = '';
   });
-
-  updateThemeButtons();
 
   var importOMediaOverlay = document.getElementById('importOMediaOverlay');
   var importOMediaFileList = document.getElementById('importOMediaFileList');

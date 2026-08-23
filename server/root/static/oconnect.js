@@ -44,7 +44,7 @@ async function networkConnect() {
         initWebSocket();
         fetchUserList();
     } catch (err) {
-        alert('Connect Error: ' + err.message);
+        showToast('Connect Error: ' + err.message, 'error');
     }
 }
 
@@ -134,7 +134,7 @@ async function loadDirectoryContents(path) {
         pickerBreadcrumb.innerText = `Path: ${currentFolderPath}`;
         renderPickerList();
     } catch (err) {
-        alert('Directory Error: ' + err.message);
+        showToast('Directory Error: ' + err.message, 'error');
     }
 }
 
@@ -183,7 +183,7 @@ function renderPickerList() {
 
 function confirmFileSelection() {
     if (!tempSelectedFilePath) {
-        alert('Please click to select a file.');
+        showToast('Please click to select a file.', 'info');
         return;
     }
 
@@ -233,14 +233,14 @@ async function sendFiles() {
 
         const data = await res.json();
         if (res.ok) {
-            alert(`Success: ${data.message}`);
+            showToast(`Success: ${data.message}`, 'success');
             selectedFiles = [];
             renderSelectedFileChips();
         } else {
-            alert(`Error: ${data.detail}`);
+            showToast(`Error: ${data.detail}`, 'error');
         }
     } catch (err) {
-        alert('Send Error: ' + err.message);
+        showToast('Send Error: ' + err.message, 'error');
     }
 }
 

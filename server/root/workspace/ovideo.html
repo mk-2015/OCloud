@@ -1135,9 +1135,6 @@ function setupKeyboard() {
         showControls();
         savePreferences();
         break;
-        e.preventDefault(); _v.volume = Math.min(1, +((_v.volume + 0.1).toFixed(2)));
-        _v.muted = false; _vs.value = _v.volume; updateVolumeIcon(); showControls(); savePreferences();
-        break;
       case 'ArrowDown':
         e.preventDefault();
         _v.volume = Math.max(0, +((_v.volume - 0.1).toFixed(2)));
@@ -1145,9 +1142,6 @@ function setupKeyboard() {
         updateVolumeIcon();
         showControls();
         savePreferences();
-        break;
-        e.preventDefault(); _v.volume = Math.max(0, +((_v.volume - 0.1).toFixed(2)));
-        _vs.value = _v.volume; updateVolumeIcon(); showControls(); savePreferences();
         break;
       case 'f': case 'F':
         e.preventDefault();
@@ -1192,8 +1186,7 @@ function savePreferences() {
   try {
     localStorage.setItem('ovideo_volume', _v.volume);
     localStorage.setItem('ovideo_speed', _ss.value);
-    } catch (e) {;
-  }
+  } catch (e) {}
 }
 
 function loadPreferences() {

@@ -61,3 +61,7 @@ The backend validates CSRF tokens (`validate_csrf(request)`) on all state-changi
   def _safe_name(name: str) -> str:
       return re.sub(r'[^\w.\-]', '_', name).strip('_') or "untitled"
   ```
+- **File Type Whitelist:** The `kind` parameter is validated against an allow-list (`odoc`, `oexcel`, `opoint`); unknown types are rejected with HTTP 400, preventing creation of arbitrary file extensions.
+- **Payload Limits:** Save requests are capped at 10 MB (checked via `Content-Length` and post-serialization size), returning HTTP 413 when exceeded.
+- **Atomic Writes:** All writes go through a temporary file + `os.replace`, so interrupted saves cannot corrupt existing documents.
+- **Audit Coverage:** Every mutating operation is audited: `workspace_create`, `workspace_save`, `workspace_delete`, and `workspace_rename`.

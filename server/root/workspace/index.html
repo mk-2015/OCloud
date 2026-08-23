@@ -85,6 +85,7 @@
             <div>
                 <p class="eyebrow">Dashboard</p>
                 <h1>OWorkspace</h1>
+                <p id="userGreeting" class="card-desc" style="margin:6px 0 0;font-size:.85rem;"></p>
             </div>
             <div style="display:flex;gap:10px;align-items:center;">
                 <a href="/omedia/userdashboard.html" class="btn btn-secondary">Dashboard</a>
@@ -139,6 +140,11 @@
         (async () => {
             const me = await fetch('/api/me');
             if (!me.ok) return window.location.href = '/login.html';
+            try {
+                const meData = await me.json();
+                const greeting = document.getElementById('userGreeting');
+                if (greeting) greeting.textContent = 'Signed in as ' + (meData.username || meData.user || '');
+            } catch (e) {}
         })();
 
         document.getElementById('logoutBtn').addEventListener('click', async () => {

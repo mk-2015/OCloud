@@ -2,6 +2,7 @@ import secrets
 import threading
 import asyncio
 import time
+import re
 
 from typing import List, Dict, Any
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, status
@@ -19,6 +20,15 @@ clientidx: int = 0
 islocal: bool = True
 
 _CONTAINER_TTL = 7200
+_LAMBDA_MEM_LIMIT = "512m"
+_LAMBDA_NANOCPUS = 1_000_000_000
+_LAMBDA_PIDS_LIMIT = 256
+_NETWORK_NAME = "cube-lambdas"
+_CAP_DROP = ["ALL"]
+_CAP_ADD = ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "KILL", "NET_BIND_SERVICE"]
+_SECURITY_OPT = ["no-new-privileges:true"]
+_IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-/]*(?::[A-Za-z0-9_.\-]+)?$")
+_DEFAULT_IMAGE = "fedora:44"
 
 def init_cube(workerarray: List, local = True):
     global clientnodes, clientidx, islocal
@@ -29,12 +39,21 @@ def init_cube(workerarray: List, local = True):
             try:
                 clientnodes = [docker.from_env()]
             except Exception:
-                print("[CUBE WARNING] Docker socket not found. Falling back to tcp://localhost:2375 (unauthenticated). Secure this port or use DOCKER_HOST.")
-                clientnodes = [docker.DockerClient(base_url="tcp://localhost:2375")]
+                print("[CUBE ERROR] Docker socket unavailable. Cube stays disabled (insecure tcp fallback removed). Configure DOCKER_HOST or mount the docker socket.")
+                clientnodes = []
         else:
             islocal = False
             clientidx = 0
-            clientnodes = [docker.DockerClient(base_url=url) for url in workerarray]
+            clientnodes = []
+            for url in workerarray:
+                if isinstance(url, str) and url.startswith("tcp://"):
+                    print(f"[CUBE WARNING] Worker '{url}' uses unauthenticated TCP. Prefer unix:// or tls:// endpoints.")
+                try:
+                    clientnodes.append(docker.DockerClient(base_url=url))
+                except Exception as e:
+                    print(f"[CUBE ERROR] Failed to attach worker '{url}': {e}")
+            if not clientnodes:
+                print("[CUBE ERROR] No reachable workers. Cube stays disabled.")
 
 
 def _find_lambda(lambda_id: str, session: dict):
@@ -64,7 +83,19 @@ async def _cleanup_expired_containers():
 
 @cube_router.post("/api/cube")
 def cubemsg(request: Request):
+    require_session(request, required_role="user")
     return "Under Construction"
+
+
+def _ensure_network(client: docker.DockerClient):
+    try:
+        return client.networks.get(_NETWORK_NAME)
+    except Exception:
+        try:
+            return client.networks.create(_NETWORK_NAME, driver="bridge", labels={"managed_by": "ocloud-cube"})
+        except Exception:
+            print(f"[CUBE WARNING] Could not create '{_NETWORK_NAME}' on node; falling back to default bridge.")
+            return None
 
 
 @cube_router.post("/api/cube/lambda/launch")
@@ -73,27 +104,48 @@ async def launchlambda(request: Request):
     session = require_session(request, required_role="user")
     json = await request.json()
 
-    dockertag = json.get("os", "fedora:44")
+    dockertag = json.get("os", _DEFAULT_IMAGE)
+
+    if not isinstance(dockertag, str) or len(dockertag) > 200 or not _IMAGE_RE.match(dockertag):
+        return JSONResponse(
+            content={"success": False, "reason": "Invalid image reference"},
+            status_code=400
+        )
 
     if not clientnodes:
         return JSONResponse(
             content={"success": False, "reason": "Cube runtime not initialized"},
             status_code=503
         )
-        
+
     lambdaid = secrets.token_hex(32)
 
     with _node_lock:
         target_client = clientnodes[clientidx]
         clientidx = (clientidx + 1) % len(clientnodes)
 
-    container = target_client.containers.run(
-        dockertag,
-        command="sleep infinity",
-        name=f"cube-lambda-{lambdaid}",
-        detach=True,
-        tty=True,
-    )
+    network = _ensure_network(target_client)
+
+    try:
+        container = target_client.containers.run(
+            dockertag,
+            command="sleep infinity",
+            name=f"cube-lambda-{lambdaid}",
+            detach=True,
+            tty=True,
+            mem_limit=_LAMBDA_MEM_LIMIT,
+            nano_cpus=_LAMBDA_NANOCPUS,
+            pids_limit=_LAMBDA_PIDS_LIMIT,
+            cap_drop=_CAP_DROP,
+            cap_add=_CAP_ADD,
+            security_opt=_SECURITY_OPT,
+            network=network.name if network else "bridge",
+        )
+    except Exception as e:
+        return JSONResponse(
+            content={"success": False, "reason": f"Failed to launch lambda: {e}"},
+            status_code=502
+        )
 
     with _lmb_lock:
         lmbservers.append({
@@ -124,7 +176,7 @@ def shutdownlambda(request: Request, lmdid: str):
         container = result["container"]
         container.stop(timeout=5)
         container.remove()
-    except Exception as e:
+    except Exception:
         pass
 
     return {"success": True}
@@ -143,15 +195,15 @@ async def execlamblet(request: Request):
     with _lmb_lock:
         result = _find_lambda(lambda_id, session)
 
-        if result is None:
-            return JSONResponse(content={"success": False, "reason": "Server id not found"}, status_code=404)
-        if result == "forbidden":
-            return JSONResponse(content={"success": False, "reason": "Not your lambda"}, status_code=403)
+    if result is None:
+        return JSONResponse(content={"success": False, "reason": "Server id not found"}, status_code=404)
+    if result == "forbidden":
+        return JSONResponse(content={"success": False, "reason": "Not your lambda"}, status_code=403)
 
-        loop = asyncio.get_event_loop()
-        exit_code, output = await loop.run_in_executor(
-            None, lambda: result["container"].exec_run(command, demux=True)
-        )
+    loop = asyncio.get_event_loop()
+    exit_code, output = await loop.run_in_executor(
+        None, lambda: result["container"].exec_run(command, demux=True)
+    )
     
     stdout = output[0] if output and output[0] else b""
     stderr = output[1] if output and output[1] else b""
