@@ -6,6 +6,7 @@ argon2-cffi
 puremagic>=1.28
 pydantic[email]>=2.13.0
 pydantic-settings>=2.0.0
+python-dotenv
 
 # cube
 docker>=7.0.0

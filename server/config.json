@@ -1,6 +1,7 @@
 {
   "host": "0.0.0.0",
   "port": 443,
+  "reload": false,
   "cube": {
     "use": true,
     "islocal": true,
@@ -11,13 +12,11 @@
     "keyfile": "./key.pem",
     "certfile": "./cert.pem"
   },
-  "admin_backdoor_user": "admin",
-  "admin_backdoor_password": "MYADMIN",
   "extendors": {
     "fileshare": true,
     "monitord": true,
     "webshell": true,
-    "iplocate": true
+    "iplocate": false
   },
   "oworkspace": {
     "use": true,

@@ -30,6 +30,8 @@ Returns a JSON response and sets the `csrf_token` cookie. Call this before any s
 | POST | `/admin/api/login` | None | Admin login, returns SToken |
 | POST | `/admin/api/logout` | SToken | Logout |
 | GET | `/admin/api/list-all-users` | SToken | List all users |
+| DELETE | `/admin/api/users/{username}` | SToken | Delete user |
+| GET | `/admin/api/audit` | SToken | Get audit logs |
 
 ### Rate Limiting
 
@@ -41,6 +43,7 @@ All file endpoints require session auth. Users can only access their own files.
 
 | Method | Endpoint | CSRF | Description |
 |--------|----------|------|-------------|
+| GET | `/api/omedia/list/{username}` | No | List user files |
 | GET | `/api/omedia/lsdir/{username}` | No | List root directory |
 | GET | `/api/omedia/lsdir/{username}/{path}` | No | List subdirectory |
 | GET | `/api/omedia/lsfile/{username}` | No | Flat recursive file list |
@@ -52,6 +55,7 @@ All file endpoints require session auth. Users can only access their own files.
 | GET | `/api/omedia/content/{username}/{path}` | No | Read file content (text) |
 | DELETE | `/api/omedia/delete/{username}/{path}` | Yes | Delete file or directory |
 | POST | `/api/omedia/move/{username}` | Yes | Move file or directory |
+| GET | `/api/omedia/search_files/{username}` | No | Search files |
 
 ### Upload Size Limit
 
@@ -84,8 +88,11 @@ When the `fileshare` extendor is enabled.
 | Method | Endpoint | Auth | CSRF | Description |
 |--------|----------|------|------|-------------|
 | POST | `/api/fileshare/upload` | User | Yes | Create a share token |
+| GET | `/api/fileshare/list` | User | No | List user shares |
+| POST | `/api/fileshare/delete/{token}` | User | Yes | Delete share token |
 | GET | `/api/fileshare/pure/{token}` | None | No | Raw file content |
 | GET | `/fileshare/{token}` | None | No | HTML preview page |
+| GET | `/api/fileshare/test` | None | No | Health check |
 
 ### Share Token Request
 

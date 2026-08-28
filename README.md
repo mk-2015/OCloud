@@ -35,6 +35,7 @@ Edit `server/config.json` before starting. See [Configuration Reference](docs/co
 ## Documentation
 
 - [Configuration](docs/configuration.md)
+- [Backend Modules](docs/backend.md)
 - [OMedia](docs/omedia.md)
 - [Cube](docs/cube.md)
 - [Extensors](docs/extendors.md)

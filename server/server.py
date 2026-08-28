@@ -10,9 +10,15 @@ import sys
 import asyncio
 import os
 import atexit
+from dotenv import load_dotenv
+
+load_dotenv()
+CONF_OVERRIDE = os.getenv("CONF_OVERRIDE", "0") == "1"
+
 from modules.omedia import omedia_router, init_omedia
 from modules.admin import admin_backdoor, init_adminbackdoor
 from modules.auth import init_auth_config, _cleanup_sessions
+from modules.hook import HookRouter
 
 if len(sys.argv) >= 2 and sys.argv[1] == "init":
     from modules.omail import init_moha_engine_db
@@ -48,6 +54,15 @@ if len(sys.argv) >= 2 and sys.argv[1] == "init":
                     last_used TEXT
                 )
             """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS user_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL,
+                    setting_name TEXT NOT NULL,
+                    setting_value TEXT,
+                    UNIQUE(username, setting_name)
+                )
+            """)
             await db.commit()
         os.makedirs(DATA, exist_ok=True)
         for user_dir in [DATA / "demo", DATA / "guest"]:
@@ -70,10 +85,17 @@ with open(CFIG) as f:
     print("Loaded configuration: config.json")
     logfile.write(f"Loaded configuration: config.json\n")
 
+if not CONF_OVERRIDE:
+    config["admin_backdoor_user"] = os.getenv("ADMIN_BACKDOOR_USER", "admin")
+    config["admin_backdoor_password"] = os.getenv("ADMIN_BACKDOOR_PASSWORD", "MYADMIN")
+    logfile.write("Configuration: Credentials loaded from environment variables\n")
+else:
+    print("Configuration: Override enabled, using credentials from config.json if present")
+    logfile.write("Configuration: Override enabled, using credentials from config.json if present\n")
+
 init_auth_config(config)
 
 from contextlib import asynccontextmanager
-
 
 @asynccontextmanager
 async def lifespan(app):
@@ -144,6 +166,7 @@ init_omedia(config.get("admin_password", "admin"))
 init_adminbackdoor(config)
 app.include_router(omedia_router)
 app.include_router(admin_backdoor)
+app.include_router(HookRouter)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
     from modules.cube import cube_router, init_cube, _cleanup_expired_containers
 
@@ -154,7 +177,6 @@ if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"
     app.include_router(cube_router)
 
 if config.get("oworkspace", {}).get("use"):
-    print("[WARNING] oworkspace is experimental.")
     from modules.oworkspace import Rworkspace, init_oworkspace
     from modules.omail import Mailer, init_omail
     from modules.oconnect import OConnect, init_oconnect
@@ -204,7 +226,7 @@ if config["extendors"]["webshell"]:
 app.mount("/", StaticFiles(directory=ROOT, html=True), name="static")
 
 if __name__ == "__main__":
-    reload = True
+    reload = config.get("reload", False)
     try:
         host = config["host"] if "host" in config else "0.0.0.0"
         display_host = "127.0.0.1" if host in {"0.0.0.0", "::"} else host

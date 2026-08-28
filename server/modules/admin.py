@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from path import DABA
+from modules.events import addEvent, Event
 
 admin_backdoor = APIRouter()
 
@@ -66,8 +67,10 @@ async def login(request: Request):
 
         SESSION_TOKENS[token] = {
             "ip": client_ip,
+            "username": username
         }
 
+        await addEvent(Event(user=username, path="admin", event="admin.login", event_tag={"ip": client_ip}))
         return JSONResponse(status_code=201, content={"token": token})
 
     return JSONResponse(
@@ -78,11 +81,12 @@ async def login(request: Request):
 @admin_backdoor.post("/admin/api/logout")
 async def logout(request: Request):
     global SESSION_TOKENS
-    isauthed(request)
+    session = isauthed(request)
     token = request.headers.get("SToken")
 
     if token in SESSION_TOKENS:
         del SESSION_TOKENS[token]
+        await addEvent(Event(user=session.get("username", "admin"), path="admin", event="admin.logout"))
         return JSONResponse(
             status_code=200, content={"message": "Logged out successfully"}
         )
@@ -115,6 +119,7 @@ async def delete_user(request: Request, username: str):
         await db.execute("DELETE FROM users WHERE username = ?", (username,))
         await db.commit()
 
+    await addEvent(Event(user=session.get("username", "admin"), path="admin", event="admin.user_deleted", event_tag={"target": username}))
     return {"message": f"User {username} deleted successfully"}
 
 

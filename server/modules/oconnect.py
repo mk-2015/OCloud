@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from path import DABA, DATA
 from modules.auth import require_session
+from modules.events import addEvent, Event
 
 OConnect = APIRouter(tags=["OConnect"])
 
@@ -92,6 +93,13 @@ async def send_file(request: Request, payload: SendFilePayload):
         "from": sender,
         "files": formatted_files
     })
+
+    await addEvent(Event(
+        user=sender,
+        path="oconnect",
+        event="oconnect.file_transfer_queued",
+        event_tag={"to_user": payload.to_user, "files": payload.files}
+    ))
 
     return {"success": True, "message": f"Files queued for {payload.to_user}"}
 
@@ -179,6 +187,17 @@ async def recieve_file(websock: WebSocket):
                             shutil.copy2(src_path, dest_path)
                             results.append(f"Copied {rel_file} to {dest_rel}")
                             logging.info(f"Successfully copied: {rel_file}")
+
+                            await addEvent(Event(
+                                user=recipient_user,
+                                path="oconnect",
+                                event="oconnect.file_transfer_completed",
+                                event_tag={
+                                    "from": sender_user,
+                                    "filename": rel_file,
+                                    "dest": str(dest_rel)
+                                }
+                            ))
 
                 await websock.send_json({"status": "processed", "copied": results})
 

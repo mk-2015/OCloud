@@ -8,6 +8,7 @@ from typing import List, Dict, Any
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse, Response
 from modules.auth import require_session, WebSocketAuthException
+from modules.events import addEvent, Event
 import docker
 import requests
 
@@ -46,7 +47,7 @@ def init_cube(workerarray: List, local = True):
             try:
                 clientnodes = [docker.from_env()]
             except Exception:
-                print("[CUBE ERROR] Docker socket unavailable. Cube stays disabled (insecure tcp fallback removed). Configure DOCKER_HOST or mount the docker socket.")
+                print("[CUBE ERROR] Docker socket unavailable. Cube stays disabled. Configure DOCKER_HOST or mount the docker socket.")
                 clientnodes = []
         else:
             islocal = False
@@ -163,11 +164,18 @@ async def launchlambda(request: Request):
             "created_at": time.time(),
         })
 
+    await addEvent(Event(
+        user=session.get("username"),
+        path="cube",
+        event="cube.lambda_launch",
+        event_tag={"lambda_id": lambdaid, "os": dockertag}
+    ))
+
     return {"lambda_id": lambdaid, "createdby": session.get("username")}
 
 
 @cube_router.delete("/api/cube/lambda/shutdown/{lmdid}")
-def shutdownlambda(request: Request, lmdid: str):
+async def shutdownlambda(request: Request, lmdid: str):
     session = require_session(request, required_role="user")
 
     with _lmb_lock:
@@ -178,6 +186,13 @@ def shutdownlambda(request: Request, lmdid: str):
             return JSONResponse(content={"success": False, "reason": "Not your lambda"}, status_code=403)
         
         lmbservers.remove(result)
+
+    await addEvent(Event(
+        user=session.get("username"),
+        path="cube",
+        event="cube.lambda_shutdown",
+        event_tag={"lambda_id": lmdid}
+    ))
 
     try:
         container = result["container"]

@@ -41,9 +41,16 @@ All runtime settings live in `server/config.json`.
 | `host` | string | Bind address. Use `0.0.0.0` for all interfaces. |
 | `port` | int | Listening port. |
 | `max_upload_mb` | int | Maximum upload size in megabytes. |
-| `admin_password` | string | Password for the built-in admin account. |
 
-### `ssl`
+### Authentication
+
+By default, administrator credentials are loaded from environment variables:
+- `ADMIN_BACKDOOR_USER`
+- `ADMIN_BACKDOOR_PASSWORD`
+
+If you need to define these in `server/config.json`, you MUST set the environment variable `CONF_OVERRIDE=1`.
+
+### SSL
 
 | Field | Type | Description |
 |-------|------|-------------|

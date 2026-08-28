@@ -15,9 +15,13 @@ import shutil
 import secrets
 import re
 import hashlib
+import io
+import zipfile
+from fastapi.responses import StreamingResponse
 
 from modules.time_utils import now
 from modules.files import ensure_user_dir, resolve_user_path
+from modules.events import addEvent, Event
 from modules.auth import (
     sessions,
     ADMIN_USERNAME,
@@ -125,6 +129,12 @@ async def create_user(request: Request, payload: dict, response: Response):
     csrf_token = _generate_csrf_token()
     _set_csrf_cookie(response, csrf_token)
     await log_audit("create_user", payload["username"], ip=_get_client_ip(request))
+    
+    await addEvent(Event(
+        user=payload["username"],
+        path="omedia",
+        event="omedia.user_created"
+    ))
     return {"status": "User created"}
 
 
@@ -165,6 +175,13 @@ async def login(request: Request, payload: dict, response: Response):
         csrf_token = _generate_csrf_token()
         _set_csrf_cookie(response, csrf_token)
         await log_audit("login", ADMIN_USERNAME, "admin login", client_ip)
+        
+        await addEvent(Event(
+            user=ADMIN_USERNAME,
+            path="omedia",
+            event="omedia.admin_login",
+            event_tag={"ip": client_ip}
+        ))
         return {
             "status": "Logged in",
             "username": ADMIN_USERNAME,
@@ -197,6 +214,13 @@ async def login(request: Request, payload: dict, response: Response):
         "role": "user",
         "expires_at": now() + timedelta(hours=8),
     }
+    
+    await addEvent(Event(
+        user=payload["username"],
+        path="omedia",
+        event="omedia.login"
+    ))
+
     response.set_cookie(
         "omedia_session",
         token,
@@ -220,8 +244,17 @@ async def login(request: Request, payload: dict, response: Response):
 async def logout(request: Request, response: Response):
     validate_csrf(request)
     token = request.cookies.get("omedia_session")
-    if token:
+    username = "unknown"
+    if token and token in sessions:
+        username = sessions[token]["username"]
         sessions.pop(token, None)
+        
+        await addEvent(Event(
+            user=username,
+            path="omedia",
+            event="omedia.logout"
+        ))
+
     response.delete_cookie("omedia_session")
     response.delete_cookie(CSRF_COOKIE)
     return {"status": "Logged out"}
@@ -280,6 +313,14 @@ async def admin_delete_user(request: Request, username: str):
     user_dir = DATA / username
     if user_dir.exists():
         shutil.rmtree(user_dir)
+        
+    await addEvent(Event(
+        user=session.get("username"),
+        path="omedia",
+        event="omedia.admin_delete_user",
+        event_tag={"target": username}
+    ))
+    
     await log_audit(
         "admin_delete_user",
         session["username"],
@@ -300,8 +341,6 @@ async def admin_audit_logs(request: Request, limit: int = 100, offset: int = 0):
 @omedia_router.post("/api/omedia/admin/backup")
 async def admin_backup(request: Request):
     require_session(request, required_role="admin")
-    import zipfile
-    import io
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -311,7 +350,6 @@ async def admin_backup(request: Request):
                 if file_path.is_file():
                     zf.write(file_path, f"data/{file_path.relative_to(DATA)}")
     buf.seek(0)
-    from fastapi.responses import StreamingResponse
 
     return StreamingResponse(
         buf,
@@ -335,6 +373,12 @@ async def create_api_key(request: Request, payload: dict):
             (key_hash, session["username"], label, now().isoformat()),
         )
         await db.commit()
+    
+    await addEvent(Event(
+        user=session.get("username"),
+        path="omedia",
+        event="omedia.api_key_created"
+    ))
     return {
         "key": raw_key,
         "label": label,
@@ -365,6 +409,12 @@ async def delete_api_key(request: Request, key_id: int):
             (key_id, session["username"]),
         )
         await db.commit()
+    
+    await addEvent(Event(
+        user=session.get("username"),
+        path="omedia",
+        event="omedia.api_key_deleted"
+    ))
     return {"status": "Deleted"}
 
 
@@ -389,6 +439,13 @@ async def delete_user(request: Request, payload: dict, response: Response):
     user_dir = DATA / payload["username"]
     if user_dir.exists():
         shutil.rmtree(user_dir)
+        
+    await addEvent(Event(
+        user=payload["username"],
+        path="omedia",
+        event="omedia.user_deleted"
+    ))
+    
     await log_audit("self_delete", payload["username"], ip=_get_client_ip(request))
     return {"status": "User deleted"}
 
@@ -487,6 +544,12 @@ async def make_dir(request: Request, username: str, payload: dict | None = None)
         raise HTTPException(status_code=400, detail="Path required")
     target_dir = resolve_user_path(username, folder)
     target_dir.mkdir(parents=True, exist_ok=True)
+    
+    await addEvent(Event(
+        user=username,
+        path=str(target_dir),
+        event="omedia.dir_created"
+    ))
     return {
         "status": "Created",
         "path": str(target_dir.relative_to(ensure_user_dir(username)).as_posix()),
@@ -509,6 +572,12 @@ async def remove_dir(request: Request, username: str, payload: dict | None = Non
     if any(target_dir.iterdir()):
         raise HTTPException(status_code=409, detail="Directory not empty")
     target_dir.rmdir()
+    
+    await addEvent(Event(
+        user=username,
+        path=str(target_dir),
+        event="omedia.dir_deleted"
+    ))
     return {"status": "Removed"}
 
 
@@ -536,6 +605,13 @@ async def upload_file(
         target_path.relative_to(user_dir).as_posix(),
         _get_client_ip(request),
     )
+    
+    await addEvent(Event(
+        user=username,
+        path=str(target_path),
+        event="omedia.file_uploaded",
+        event_tag={"filename": file.filename}
+    ))
     return {"status": "Uploaded", "path": target_path.relative_to(user_dir).as_posix()}
 
 
@@ -556,15 +632,20 @@ async def move_path(request: Request, username: str, payload: dict | None = None
     if not src_path.exists():
         raise HTTPException(status_code=404, detail="Source not found")
         
-    # If the destination exists and is a directory, move the source into it
     if dst_path.exists() and dst_path.is_dir():
         dst_path = dst_path / src_path.name
         
-    # If the final destination still exists, that's a conflict
     if dst_path.exists():
         raise HTTPException(status_code=409, detail="Destination already exists")
 
     shutil.move(str(src_path), str(dst_path))
+    
+    await addEvent(Event(
+        user=username,
+        path=str(dst_path),
+        event="omedia.file_moved",
+        event_tag={"from": src, "to": dst}
+    ))
     return {"status": "Moved", "from": src, "to": dst}
 
 
@@ -576,6 +657,12 @@ async def download_file(request: Request, username: str, path: str):
     target_path = resolve_user_path(username, path)
     if not target_path.exists() or not target_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
+    
+    await addEvent(Event(
+        user=username,
+        path=str(target_path),
+        event="omedia.file_downloaded"
+    ))
     return Response(
         content=target_path.read_bytes(), media_type="application/octet-stream"
     )
@@ -610,5 +697,11 @@ async def delete_file(request: Request, username: str, path: str):
         else:
             shutil.rmtree(target_path)
         await log_audit("delete", username, path, _get_client_ip(request))
+        
+        await addEvent(Event(
+            user=username,
+            path=str(target_path),
+            event="omedia.file_deleted"
+        ))
         return {"status": "Deleted"}
     raise HTTPException(status_code=404, detail="Not found")

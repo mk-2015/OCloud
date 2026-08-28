@@ -1,8 +1,9 @@
 import time
 import platform
 import psutil
-from fastapi import APIRouter
-from modules.auth import require_session, Request
+import asyncio
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from modules.auth import require_session, Request, WebSocketAuthException
 
 monitord = APIRouter()
 
@@ -15,20 +16,8 @@ def _bytes_fmt(n: int) -> str:
     return f"{n:.1f} PB"
 
 
-def init_monitord():
-    pass
-
-
-@monitord.get("/api/monitord/test")
-def test():
-    return {"Test": "Ok"}
-
-
-@monitord.get("/api/monitord/stats")
-def get_stats(request: Request):
-    require_session(request, required_role="admin")
-
-    cpu_percent = psutil.cpu_percent(interval=0.5)
+def _get_stats_data():
+    cpu_percent = psutil.cpu_percent(interval=None)
     cpu_count = psutil.cpu_count(logical=True)
     cpu_freq = psutil.cpu_freq()
     load_avg = psutil.getloadavg() if hasattr(psutil, "getloadavg") else None
@@ -42,6 +31,7 @@ def get_stats(request: Request):
     uptime_secs = int(time.time() - boot)
 
     net = psutil.net_io_counters()
+    interfaces = psutil.net_if_addrs()
 
     return {
         "cpu": {
@@ -94,6 +84,7 @@ def get_stats(request: Request):
             "bytes_recv_fmt": _bytes_fmt(net.bytes_recv),
             "packets_sent": net.packets_sent,
             "packets_recv": net.packets_recv,
+            "interface_count": len(interfaces),
         },
         "system": {
             "os": platform.system(),
@@ -103,6 +94,42 @@ def get_stats(request: Request):
             "arch": platform.machine(),
         },
     }
+
+
+def init_monitord():
+    # Initial call to initialize psutil sensors
+    psutil.cpu_percent(interval=None)
+
+
+@monitord.get("/api/monitord/test")
+def test():
+    return {"Test": "Ok"}
+
+
+@monitord.get("/api/monitord/stats")
+def get_stats(request: Request):
+    require_session(request, required_role="admin")
+    return _get_stats_data()
+
+
+@monitord.websocket("/ws/monitor")
+async def monitor_websocket(websocket: WebSocket):
+    try:
+        require_session(websocket, required_role="admin")
+    except WebSocketAuthException as e:
+        await websocket.close(code=e.code)
+        return
+
+    await websocket.accept()
+    try:
+        while True:
+            stats = _get_stats_data()
+            await websocket.send_json(stats)
+            await asyncio.sleep(2)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await websocket.close()
 
 
 @monitord.get("/api/monitord/processes")
