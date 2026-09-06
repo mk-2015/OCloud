@@ -84,10 +84,37 @@
         let currentLabel = 'label:INBOX';
         let selectedFiles = [];
         let currentThreadData = null;
+        let selectedThreadIndex = -1;
 
         function getCsrf() {
             return typeof getCsrfToken === 'function' ? getCsrfToken() : '';
         }
+
+        // --- Keyboard Navigation ---
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.getAttribute('contenteditable') === 'true') return;
+
+            if (e.key === 'j') navigateThreads(1);
+            if (e.key === 'k') navigateThreads(-1);
+            if (e.key === 'c') openCompose();
+            if (e.key === 'r') replyMessage();
+        });
+
+        function navigateThreads(dir) {
+            const items = document.querySelectorAll('.thread-item');
+            if (items.length === 0) return;
+
+            let nextIndex = selectedThreadIndex + dir;
+            if (nextIndex < 0) nextIndex = 0;
+            if (nextIndex >= items.length) nextIndex = items.length - 1;
+
+            selectedThreadIndex = nextIndex;
+            items.forEach(el => el.classList.remove('active'));
+            items[selectedThreadIndex].classList.add('active');
+            items[selectedThreadIndex].scrollIntoView({ block: 'nearest' });
+            items[selectedThreadIndex].click();
+        }
+        // --- End Keyboard Navigation ---
 
         function formatText(command) {
             document.execCommand(command, false, null);
@@ -144,6 +171,7 @@
             const list = document.getElementById('threadList');
             const search = document.getElementById('searchInput').value;
             list.innerHTML = '<div class="loading">Loading messages...</div>';
+            selectedThreadIndex = -1; // Reset navigation index
             
             const q = search ? `${label} ${search}` : label;
             try {
@@ -156,7 +184,7 @@
                     return;
                 }
 
-                data.threads.forEach(t => {
+                data.threads.forEach((t, index) => {
                     const item = document.createElement('div');
                     item.className = 'thread-item';
                     const isStarred = t.labels && t.labels.includes('STARRED');
@@ -189,6 +217,7 @@
                         if (e.target.classList.contains('star')) return;
                         document.querySelectorAll('.thread-item').forEach(el => el.classList.remove('active'));
                         item.classList.add('active');
+                        selectedThreadIndex = index;
                         loadThread(t.id);
                     };
                     list.appendChild(item);
@@ -272,6 +301,15 @@
         async function toggleStar(event, threadId, currentlyStarred) {
             event.stopPropagation();
             try {
+                // Fetch thread to get all message IDs
+                const res = await fetch(`/api/mail/threads/${threadId}`);
+                const data = await res.json();
+                if (!res.ok || !data.messages) {
+                    showToast('Failed to toggle star.', 'error');
+                    return;
+                }
+                const messageIds = data.messages.map(m => m.id);
+
                 await fetch('/api/mail/batch', {
                     method: 'POST',
                     headers: {
@@ -279,7 +317,7 @@
                         'X-CSRF-Token': getCsrf()
                     },
                     body: JSON.stringify({
-                        thread_ids: [threadId],
+                        message_ids: messageIds,
                         add_labels: currentlyStarred ? [] : ['STARRED'],
                         remove_labels: currentlyStarred ? ['STARRED'] : []
                     })
