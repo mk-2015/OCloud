@@ -468,9 +468,14 @@
       margin-bottom: 4px;
     }
 
-    .ql-editor img {
-      max-width: 100%;
-      border-radius: 8px;
+    .ql-editor table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0;
+    }
+    .ql-editor td, .ql-editor th {
+      border: 1px solid var(--border-color);
+      padding: 8px;
     }
 
     .ql-font-sans-serif { font-family: system-ui, -apple-system, sans-serif; }
@@ -677,7 +682,7 @@
     </div>
   </div>
 
-  <input type="file" id="diskInput" style="display:none" accept=".txt,.md,.html,.json,.csv,.xml,.log,.yaml,.yml,.toml,.ini,.conf,.cfg,.sh,.py,.js,.ts,.css,.sql">
+  <input type="file" id="diskInput" style="display:none" accept=".txt,.md,.html,.json,.csv,.xml,.log,.yaml,.yml,.toml,.ini,.conf,.cfg,.sh,.py,.js,.ts,.css,.sql,.pdf,.odt,.ods,.odp">
 
   <div id="omediaModal" class="modal-overlay hidden">
     <div class="modal">
@@ -756,6 +761,7 @@
           <button class="ql-link"></button>
           <button class="ql-image"></button>
           <button class="ql-video"></button>
+          <button class="ql-table" title="Insert Table">T</button>
         </span>
         <span class="ql-formats">
           <button class="ql-clean"></button>
@@ -771,6 +777,10 @@
   <script src="/static/workspace.js"></script>
   <script src="/static/modal.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/quill-table-ui@1.0.7/dist/index.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/quill-table-ui@1.0.7/dist/umd/index.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script>
     (function () {
       var quill = null;
@@ -835,7 +845,7 @@
           var data = await res.json();
           var files = (data.files || data || []).filter(function (f) {
             var name = (f.name || f.filename || '').toLowerCase();
-            return /\.(txt|md|html|json|csv|xml|log|yaml|yml|toml|ini|conf|cfg|sh|py|js|ts|css|sql)$/.test(name);
+            return /\.(txt|md|html|json|csv|xml|log|yaml|yml|toml|ini|conf|cfg|sh|py|js|ts|css|sql|pdf|odt|ods|odp)$/.test(name);
           });
           if (files.length === 0) {
             omediaModalBody.innerHTML = '<div class="empty-msg">No text files found in OMedia</div>';
@@ -870,7 +880,29 @@
           var url = '/api/omedia/download/' + encodeURIComponent(username) + '/' + encodeURIComponent(filename);
           var res = await fetch(url);
           if (!res.ok) throw new Error();
-          var text = await res.text();
+          
+          var text = "";
+          var isBinary = /\.(pdf|odt|ods|odp)$/i.test(filename);
+          
+          if (isBinary) {
+            var blob = await res.blob();
+            var base64Data = await new Promise(function(resolve) {
+                var reader = new FileReader();
+                reader.onload = function() { resolve(reader.result); };
+                reader.readAsDataURL(blob);
+            });
+            var convRes = await fetch('/api/oworkspace/convert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileName: filename, fileContents: base64Data })
+            });
+            if (!convRes.ok) throw new Error('Conversion failed');
+            var data = await convRes.json();
+            text = data.text;
+          } else {
+            text = await res.text();
+          }
+
           var docLabel = filename.replace(/\.[^.]+$/, '');
           var createRes = await WorkspaceAPI.createFile(docLabel + '.odoc', 'odoc');
           if (!createRes) throw new Error();
@@ -886,9 +918,9 @@
           picker.style.display = 'none';
           editorView.style.display = 'flex';
           window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(currentFile));
-          showToast('Imported from OMedia', 'success');
+          showToast('Imported and converted from OMedia', 'success');
         } catch (e) {
-          showToast('Failed to import from OMedia', 'error');
+          showToast('Failed to import from OMedia: ' + e.message, 'error');
         }
       }
 
@@ -903,34 +935,75 @@
         diskInput.click();
       });
 
-      diskInput.addEventListener('change', function () {
+      // Client-side extraction functions
+      async function extractTextFromPDF(arrayBuffer) {
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let text = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(item => item.str).join(" ") + "\n";
+        }
+        return text;
+      }
+
+      async function extractTextFromODT(arrayBuffer) {
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const contentXml = await zip.file("content.xml").async("string");
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(contentXml, "text/xml");
+        const paragraphs = xmlDoc.getElementsByTagNameNS("urn:oasis:names:tc:opendocument:xmlns:text:1.0", "p");
+        let text = "";
+        for (let p of paragraphs) {
+          text += p.textContent + "\n";
+        }
+        return text;
+      }
+
+      diskInput.addEventListener('change', async function () {
         var file = diskInput.files && diskInput.files[0];
         if (!file) return;
-        var reader = new FileReader();
-        reader.onload = async function () {
-          try {
-            var text = reader.result;
-            var docLabel = file.name.replace(/\.[^.]+$/, '');
-            var createRes = await WorkspaceAPI.createFile(docLabel + '.odoc', 'odoc');
-            if (!createRes) throw new Error();
-            initQuill();
-            quill.setText(text);
-            currentFile = createRes.file.filename;
-            currentData = createRes.file;
-            docNameInput.value = docLabel;
-            hasChanges = true;
-            await saveDocument();
-            hasChanges = false;
-            lastSaved = JSON.stringify(quill.getContents());
-            picker.style.display = 'none';
-            editorView.style.display = 'flex';
-            window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(currentFile));
-            showToast('Imported from disk', 'success');
-          } catch (e) {
-            showToast('Failed to import from disk', 'error');
+
+        var text = "";
+        var isPDF = file.name.toLowerCase().endsWith('.pdf');
+        var isODT = file.name.toLowerCase().endsWith('.odt');
+
+        try {
+          if (isPDF || isODT) {
+            const arrayBuffer = await file.arrayBuffer();
+            if (isPDF) {
+              text = await extractTextFromPDF(arrayBuffer);
+            } else {
+              text = await extractTextFromODT(arrayBuffer);
+            }
+          } else {
+            text = await new Promise(function(resolve, reject) {
+              var reader = new FileReader();
+              reader.onload = function() { resolve(reader.result); };
+              reader.onerror = reject;
+              reader.readAsText(file);
+            });
           }
-        };
-        reader.readAsText(file);
+
+          var docLabel = file.name.replace(/\.[^.]+$/, '');
+          var createRes = await WorkspaceAPI.createFile(docLabel + '.odoc', 'odoc');
+          if (!createRes) throw new Error('Failed to create file');
+          initQuill();
+          quill.setText(text);
+          currentFile = createRes.file.filename;
+          currentData = createRes.file;
+          docNameInput.value = docLabel;
+          hasChanges = true;
+          await saveDocument();
+          hasChanges = false;
+          lastSaved = JSON.stringify(quill.getContents());
+          picker.style.display = 'none';
+          editorView.style.display = 'flex';
+          window.history.replaceState({}, '', window.location.pathname + '?file=' + encodeURIComponent(currentFile));
+          showToast('Imported and converted', 'success');
+        } catch (e) {
+          showToast('Failed to import: ' + e.message, 'error');
+        }
       });
 
       async function loadFileList() {
@@ -1035,11 +1108,26 @@
         var Size = Quill.import('attributors/style/size');
         Size.whitelist = ['12px', '16px', '24px', '32px'];
         Quill.register(Size, true);
+        Quill.register({
+          'modules/tableUI': quillTableUI.default || quillTableUI
+        }, true);
 
         quill = new Quill('#editor', {
           theme: 'snow',
           modules: {
-            toolbar: '#toolbar'
+            toolbar: {
+              container: '#toolbar',
+              handlers: {
+                table: function() {
+                  const tableModule = this.quill.getModule('table');
+                  if (tableModule) {
+                    tableModule.insertTable(3, 3);
+                  }
+                }
+              }
+            },
+            table: true,
+            tableUI: true
           },
           placeholder: 'Start writing...'
         });

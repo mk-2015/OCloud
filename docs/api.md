@@ -144,6 +144,39 @@ When the `webshell` extendor is enabled. Admin only.
 
 See [Webshell Docs](extendors/webshell.md) for details.
 
+## Hook
+
+When the `hook` module is enabled.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/hook/register` | Register a new hook |
+| POST | `/api/hook/unregister` | Unregister a hook |
+| WS | `/api/hook/ws` | Event stream WebSocket |
+
+See [Hook Docs](hook.md) for protocol details.
+
+## IP Locate
+
+When the `iplocate` extendor is enabled.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/locate/myip` | Locate own IP |
+| GET | `/myip` | Simple IP check |
+
+## OConnect
+
+When `oconnect` is enabled.
+
+| Method | Endpoint | Auth | CSRF | Description |
+|--------|----------|------|------|-------------|
+| POST | `/api/konnect/network-connect` | User | No | Announce as active peer |
+| GET | `/api/konnect/list-connected` | User | No | List connected users |
+| POST | `/api/konnect/network-disconnect` | User | No | Disconnect |
+| POST | `/api/konnect/send-file` | User | No | Queue file transfer |
+| WS | `/api/konnect/recieve-file` | User | No | File transfer channel |
+
 ## Cube
 
 Requires Cube to be enabled in config.

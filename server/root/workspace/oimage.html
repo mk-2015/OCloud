@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>OImage</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    body { display:flex; flex-direction:column; height: 100vh; overflow: hidden; }
+    .header { display:flex; gap:12px; align-items:center; padding:16px 24px; background:var(--bg-card); border-bottom:1px solid var(--border-color); }
+    .toolbar { padding:12px 24px; background: var(--bg-main); border-bottom:1px solid var(--border-color); display:flex; gap:8px; align-items:center; }
+    #canvasWrap { flex:1; display:flex; align-items:center; justify-content:center; padding:24px; overflow:auto; }
+    canvas { background:#000; border-radius:12px; max-width:100%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .modal-body { padding: 16px 0; max-height: 70vh; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="/workspace/" class="btn btn-secondary">&larr; Back</a>
+    <h1 style="font-size:1.25rem; margin:0;">OImage</h1>
+  </div>
+
+  <div class="toolbar">
+    <button id="btnOpenDisk" class="btn btn-secondary">Open from Disk</button>
+    <button id="btnImportOMedia" class="btn btn-primary">Import from OMedia</button>
+    <input id="fileInput" type="file" accept="image/*" style="display:none">
+    <div style="flex:1"></div>
+    <div style="display:flex; gap:8px; align-items:center; background:rgba(0,0,0,0.2); padding:4px 10px; border-radius:8px;">
+        <label class="checkbox-label"><input type="checkbox" id="chkDrawMode"> Draw</label>
+        <input type="color" id="colorPicker" value="#ffffff" style="width:30px;height:30px;padding:2px;">
+        <input type="range" id="brushSize" min="1" max="50" value="5" style="width:60px;">
+    </div>
+    <button id="btnRotateLeft" class="btn btn-secondary" title="Rotate Left">⟲</button>
+    <button id="btnRotateRight" class="btn btn-secondary" title="Rotate Right">⟳</button>
+    <button id="btnZoomIn" class="btn btn-secondary" title="Zoom In">+</button>
+    <button id="btnZoomOut" class="btn btn-secondary" title="Zoom Out">−</button>
+    <button id="btnReset" class="btn btn-secondary">Reset</button>
+    <button id="btnDownload" class="btn btn-primary">Download</button>
+  </div>
+
+  <div id="canvasWrap">
+    <canvas id="imageCanvas" width="800" height="450"></canvas>
+  </div>
+
+  <div id="omediaModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal" style="width:90%;max-width:800px;">
+      <h3>Import from OMedia</h3>
+      <input id="omediaSearch" placeholder="Search images..." />
+      <div id="omediaModalBody" class="modal-body">
+        <div id="omediaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;">
+          <div class="empty-msg" style="padding:20px;text-align:center;">Loading files...</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="omediaModalClose" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/theme.js"></script>
+  <script src="/static/utils.js"></script>
+  <script src="/static/oimage.js"></script>
+</body>
+</html>

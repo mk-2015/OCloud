@@ -71,6 +71,7 @@ The backend validates CSRF tokens (`validate_csrf(request)`) on all state-changi
 - [OConnect](./oconnect.md)
 - [ODocs](./odocs.md)
 - [OExcel](./oexcel.md)
+- [OImage](./oimage.md)
 - [OMail](./omail.md)
 - [OPoint](./opoint.md)
 - [OVideo](./ovideo.md)
