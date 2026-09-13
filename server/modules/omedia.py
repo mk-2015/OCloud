@@ -26,6 +26,7 @@ from modules.auth import (
     sessions,
     ADMIN_USERNAME,
     ADMIN_PASSWORD,
+    ADMIN_DEFAULT_PASSWORD,
     require_session,
     require_auth,
     _get_client_ip,
@@ -263,7 +264,11 @@ async def logout(request: Request, response: Response):
 @omedia_router.get("/api/me")
 async def me(request: Request):
     session = require_session(request)
-    return {"username": session["username"], "role": session.get("role", "user")}
+    return {
+        "username": session["username"],
+        "role": session.get("role", "user"),
+        "default_password": ADMIN_DEFAULT_PASSWORD,
+    }
 
 
 @omedia_router.get("/api/omedia/admin/users")

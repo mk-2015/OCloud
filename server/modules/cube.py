@@ -88,13 +88,6 @@ async def _cleanup_expired_containers():
             except Exception:
                 pass
 
-
-@cube_router.post("/api/cube")
-def cubemsg(request: Request):
-    require_session(request, required_role="user")
-    return "Under Construction"
-
-
 def _ensure_network(client: docker.DockerClient):
     try:
         return client.networks.get(_NETWORK_NAME)

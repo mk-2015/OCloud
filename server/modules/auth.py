@@ -28,12 +28,14 @@ sessions: dict[str, dict] = {}
 ADMIN_PASSWORD_PLAIN = "admin"
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = hash_password(ADMIN_PASSWORD_PLAIN)
+ADMIN_DEFAULT_PASSWORD = True
 
 
 def _set_admin_password(password: str):
-    global ADMIN_PASSWORD_PLAIN, ADMIN_PASSWORD
+    global ADMIN_PASSWORD_PLAIN, ADMIN_PASSWORD, ADMIN_DEFAULT_PASSWORD
     ADMIN_PASSWORD_PLAIN = password
     ADMIN_PASSWORD = hash_password(ADMIN_PASSWORD_PLAIN)
+    ADMIN_DEFAULT_PASSWORD = password == "admin"
 
 
 login_attempts: dict[str, list[float]] = {}
