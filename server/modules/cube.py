@@ -78,7 +78,10 @@ async def _cleanup_expired_containers():
         await asyncio.sleep(300)
         now = time.time()
         with _lmb_lock:
-            expired = [s for s in lmbservers if now - s.get("created_at", now) > _CONTAINER_TTL]
+            expired = [
+                s for s in lmbservers
+                if (not s.get("forever", False)) and (now - s.get("created_at", now) > _CONTAINER_TTL)
+            ]
             for s in expired:
                 lmbservers.remove(s)
         for s in expired:
@@ -87,6 +90,7 @@ async def _cleanup_expired_containers():
                 s["container"].remove()
             except Exception:
                 pass
+
 
 def _ensure_network(client: docker.DockerClient):
     try:
@@ -106,10 +110,17 @@ async def launchlambda(request: Request):
     json = await request.json()
 
     dockertag = json.get("os", _DEFAULT_IMAGE)
+    forever = json.get("forever", False)
 
     if not isinstance(dockertag, str) or len(dockertag) > 200 or not _IMAGE_RE.match(dockertag):
         return JSONResponse(
             content={"success": False, "reason": "Invalid image reference"},
+            status_code=400
+        )
+
+    if not isinstance(forever, bool):
+        return JSONResponse(
+            content={"success": False, "reason": "Invalid forever flag"},
             status_code=400
         )
 
@@ -155,16 +166,17 @@ async def launchlambda(request: Request):
             "container": container,
             "node_client": target_client,
             "created_at": time.time(),
+            "forever": forever,
         })
 
     await addEvent(Event(
         user=session.get("username"),
         path="cube",
         event="cube.lambda_launch",
-        event_tag={"lambda_id": lambdaid, "os": dockertag}
+        event_tag={"lambda_id": lambdaid, "os": dockertag, "forever": forever}
     ))
 
-    return {"lambda_id": lambdaid, "createdby": session.get("username")}
+    return {"lambda_id": lambdaid, "createdby": session.get("username"), "forever": forever}
 
 
 @cube_router.delete("/api/cube/lambda/shutdown/{lmdid}")
