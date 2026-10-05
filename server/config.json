@@ -4,6 +4,7 @@
   "reload": true,
   "cube": {
     "use": true,
+    "kataon": false,
     "islocal": true,
     "workers": ["tcp://localhost:2350"]
   },

@@ -16,3 +16,7 @@
 .vscode/
 __pycache__/
 data/
+
+# Other
+log.json
+

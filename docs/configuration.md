@@ -10,6 +10,7 @@ All runtime settings live in `server/config.json`.
     "port": 443,
     "cube": {
         "use": false,
+        "kataon": false,
         "islocal": true,
         "workers": ["tcp://localhost:2350"]
     },
@@ -41,14 +42,11 @@ All runtime settings live in `server/config.json`.
 | `host` | string | Bind address. Use `0.0.0.0` for all interfaces. |
 | `port` | int | Listening port. |
 | `max_upload_mb` | int | Maximum upload size in megabytes. |
+| `admin_password` | string | Password for the administrator account. Defaults to `admin`; set a unique value for deployments. |
 
 ### Authentication
 
-By default, administrator credentials are loaded from environment variables:
-- `ADMIN_BACKDOOR_USER`
-- `ADMIN_BACKDOOR_PASSWORD`
-
-If you need to define these in `server/config.json`, you MUST set the environment variable `CONF_OVERRIDE=1`.
+Set `admin_password` in `server/config.json` to change the administrator account password.
 
 ### SSL
 
@@ -63,8 +61,11 @@ If you need to define these in `server/config.json`, you MUST set the environmen
 | Field | Type | Description |
 |-------|------|-------------|
 | `use` | bool | Enable the Cube component at startup. |
+| `kataon` | bool | Launch Cube containers with Docker's `kata` runtime. The runtime must be installed and registered on every Docker worker. |
 | `islocal` | bool | Run lambdas locally (ignores `workers`). |
 | `workers` | string[] | Remote worker addresses (e.g. `tcp://host:port`). |
+
+Kata runs containers in lightweight virtual machines, adding isolation from the host kernel. This reduces the impact of container-to-host kernel escapes, but does not eliminate all escape risks. When `kataon` is enabled, Docker must have a runtime registered under the name `kata`; otherwise Cube launches will fail.
 
 ### `oworkspace`
 

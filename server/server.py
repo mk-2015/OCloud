@@ -13,10 +13,8 @@ import atexit
 from dotenv import load_dotenv
 
 load_dotenv()
-CONF_OVERRIDE = os.getenv("CONF_OVERRIDE", "0") == "1"
 
 from modules.omedia import omedia_router, init_omedia
-from modules.admin import admin_backdoor, init_adminbackdoor
 from modules.auth import init_auth_config, _cleanup_sessions
 from modules.hook import HookRouter
 
@@ -84,14 +82,6 @@ with open(CFIG) as f:
     config = json.load(f)
     print("Loaded configuration: config.json")
     logfile.write(f"Loaded configuration: config.json\n")
-
-if not CONF_OVERRIDE:
-    config["admin_backdoor_user"] = os.getenv("ADMIN_BACKDOOR_USER", "admin")
-    config["admin_backdoor_password"] = os.getenv("ADMIN_BACKDOOR_PASSWORD", "MYADMIN")
-    logfile.write("Configuration: Credentials loaded from environment variables\n")
-else:
-    print("Configuration: Override enabled, using credentials from config.json if present")
-    logfile.write("Configuration: Override enabled, using credentials from config.json if present\n")
 
 init_auth_config(config)
 
@@ -163,17 +153,19 @@ class UploadSizeLimitMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(UploadSizeLimitMiddleware)
 init_omedia(config.get("admin_password", "admin"))
-init_adminbackdoor(config)
 app.include_router(omedia_router)
-app.include_router(admin_backdoor)
 app.include_router(HookRouter)
 if config["cube"]["use"] or (len(sys.argv) >= 2 and sys.argv[1] == "--with-cube"):
     from modules.cube import cube_router, init_cube, _cleanup_expired_containers
 
     if config["cube"]["islocal"]:
-        init_cube([])
+        init_cube([], kataon=config["cube"].get("kataon", False))
     else:
-        init_cube(config["cube"].get("workers", []), local=False)
+        init_cube(
+            config["cube"].get("workers", []),
+            local=False,
+            kataon=config["cube"].get("kataon", False),
+        )
     app.include_router(cube_router)
 
 if config.get("oworkspace", {}).get("use"):

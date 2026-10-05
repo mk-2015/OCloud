@@ -26,6 +26,7 @@ _LAMBDA_MEM_LIMIT = "512m"
 _LAMBDA_NANOCPUS = 1_000_000_000
 _LAMBDA_PIDS_LIMIT = 256
 _NETWORK_NAME = "cube-lambdas"
+_KATA_ON = False
 _CAP_DROP = ["ALL"]
 _CAP_ADD = ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID", "KILL", "NET_BIND_SERVICE"]
 _SECURITY_OPT = ["no-new-privileges:true"]
@@ -38,9 +39,10 @@ _HOP_HEADERS = {
     "host", "content-length", "cookie", "authorization",
 }
 
-def init_cube(workerarray: List, local = True):
-    global clientnodes, clientidx, islocal
+def init_cube(workerarray: List, local = True, kataon = False):
+    global clientnodes, clientidx, islocal, _KATA_ON
     with _node_lock:
+        _KATA_ON = kataon
         if local:
             islocal = True
             clientidx = 0
@@ -139,19 +141,24 @@ async def launchlambda(request: Request):
     network = _ensure_network(target_client)
 
     try:
+        run_options = {
+            "command": "sleep infinity",
+            "name": f"cube-lambda-{lambdaid}",
+            "detach": True,
+            "tty": True,
+            "mem_limit": _LAMBDA_MEM_LIMIT,
+            "nano_cpus": _LAMBDA_NANOCPUS,
+            "pids_limit": _LAMBDA_PIDS_LIMIT,
+            "cap_drop": _CAP_DROP,
+            "cap_add": _CAP_ADD,
+            "security_opt": _SECURITY_OPT,
+            "network": network.name if network else "bridge",
+        }
+        if _KATA_ON:
+            run_options["runtime"] = "kata"
         container = target_client.containers.run(
             dockertag,
-            command="sleep infinity",
-            name=f"cube-lambda-{lambdaid}",
-            detach=True,
-            tty=True,
-            mem_limit=_LAMBDA_MEM_LIMIT,
-            nano_cpus=_LAMBDA_NANOCPUS,
-            pids_limit=_LAMBDA_PIDS_LIMIT,
-            cap_drop=_CAP_DROP,
-            cap_add=_CAP_ADD,
-            security_opt=_SECURITY_OPT,
-            network=network.name if network else "bridge",
+            **run_options,
         )
     except Exception as e:
         return JSONResponse(
