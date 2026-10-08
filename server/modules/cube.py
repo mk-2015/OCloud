@@ -9,7 +9,6 @@ from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse, Response
 from modules.auth import require_session, WebSocketAuthException
 from modules.events import addEvent, Event
-from modules.cubex
 import docker
 import requests
 
@@ -158,8 +157,8 @@ async def launchlambda(request: Request):
         if _KATA_ON:
             if platform.system() != "Linux":
                 run_options["runtime"] = "kata"
-            
 
+            run_options["runtime"] = "kata"
         container = target_client.containers.run(
             dockertag,
             **run_options,
