@@ -1,0 +1,21 @@
+fastapi>=0.139.0
+uvicorn>=0.50.0
+aiosqlite>=0.17.0
+python-multipart
+argon2-cffi
+puremagic>=1.28
+pydantic[email]>=2.13.0
+pydantic-settings>=2.0.0
+python-dotenv
+
+# cube
+docker>=7.0.0
+websockets>=13.0
+
+# monitord
+psutil>=5.9.0
+
+# webshell (Windows ConPTY)
+pywinpty>=2.0; sys_platform == "win32"
+
+

@@ -1,0 +1,30 @@
+{
+  "host": "0.0.0.0",
+  "port": 443,
+  "reload": true,
+  "cube": {
+    "use": true,
+    "kataon": false,
+    "islocal": true,
+    "workers": ["tcp://localhost:2350"]
+  },
+  "ssl": {
+    "use": true,
+    "keyfile": "./key.pem",
+    "certfile": "./cert.pem"
+  },
+  "extendors": {
+    "fileshare": true,
+    "monitord": true,
+    "webshell": true,
+    "iplocate": false
+  },
+  "oworkspace": {
+    "use": true,
+    "omail": 
+    {
+      "domain": "opencloud.local"
+    }
+  },
+  "max_upload_mb": 1024
+}

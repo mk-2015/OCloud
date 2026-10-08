@@ -1,0 +1,712 @@
+from fastapi import (
+    APIRouter,
+    Response,
+    UploadFile,
+    File,
+    Form,
+    status,
+    Request,
+    HTTPException,
+)
+from path import DATA, DABA
+from datetime import timedelta
+import aiosqlite
+import shutil
+import secrets
+import re
+import hashlib
+import io
+import zipfile
+from fastapi.responses import StreamingResponse
+
+from modules.time_utils import now
+from modules.files import ensure_user_dir, resolve_user_path
+from modules.events import addEvent, Event
+from modules.auth import (
+    sessions,
+    ADMIN_USERNAME,
+    ADMIN_PASSWORD,
+    ADMIN_DEFAULT_PASSWORD,
+    require_session,
+    require_auth,
+    _get_client_ip,
+    check_login_rate_limit,
+    record_failed_login,
+    clear_login_attempts,
+    hash_password,
+    verify_password,
+    _set_admin_password,
+)
+from modules.audit import log_audit, get_audit_logs, get_audit_count
+
+omedia_router = APIRouter()
+
+CSRF_COOKIE = "csrf_token"
+CSRF_HEADER = "X-CSRF-Token"
+
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,32}$")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def init_omedia(password_adm: str = "admin"):
+    _set_admin_password(password=password_adm)
+
+
+def _validate_registration(payload: dict):
+    username = payload.get("username", "")
+    password = payload.get("password", "")
+    email = payload.get("email", "")
+    if not _USERNAME_RE.match(username):
+        raise HTTPException(
+            status_code=400,
+            detail="Username must be 3-32 characters, alphanumeric, underscore, or hyphen",
+        )
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=400, detail="Password must be at least 8 characters"
+        )
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+
+
+def _generate_csrf_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def _set_csrf_cookie(response: Response, token: str):
+    response.set_cookie(
+        CSRF_COOKIE, token, httponly=False, samesite="lax", max_age=60 * 60 * 8
+    )
+
+
+def validate_csrf(request: Request):
+    if request.headers.get("x-api-key"):
+        return
+    cookie_val = request.cookies.get(CSRF_COOKIE)
+    header_val = request.headers.get(CSRF_HEADER)
+    if not cookie_val or not header_val or cookie_val != header_val:
+        raise HTTPException(status_code=403, detail="CSRF validation failed")
+
+
+@omedia_router.get("/api/csrf-token")
+async def csrf_token(response: Response):
+    token = _generate_csrf_token()
+    _set_csrf_cookie(response, token)
+    return {"csrf_token": token}
+
+
+@omedia_router.get("/api/test")
+def test(response: Response):
+    token = _generate_csrf_token()
+    _set_csrf_cookie(response, token)
+    return {"Test": "OK"}
+
+
+@omedia_router.post("/api/create_user", status_code=status.HTTP_201_CREATED)
+async def create_user(request: Request, payload: dict, response: Response):
+    if not all(k in payload for k in ("username", "password", "email")):
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"error": "Missing required fields"}
+
+    _validate_registration(payload)
+
+    async with aiosqlite.connect(DABA) as db:
+        cursor = await db.execute(
+            "SELECT 1 FROM users WHERE username = ?", (payload["username"],)
+        )
+        existing = await cursor.fetchone()
+        if existing:
+            response.status_code = status.HTTP_409_CONFLICT
+            return {"error": "User already exists"}
+
+        await db.execute(
+            "INSERT INTO users (username, password, email) VALUES (?, ?, ?)",
+            (payload["username"], hash_password(payload["password"]), payload["email"]),
+        )
+        await db.commit()
+
+    user_dir = ensure_user_dir(payload["username"])
+    (user_dir / "docs").mkdir(exist_ok=True)
+    csrf_token = _generate_csrf_token()
+    _set_csrf_cookie(response, csrf_token)
+    await log_audit("create_user", payload["username"], ip=_get_client_ip(request))
+    
+    await addEvent(Event(
+        user=payload["username"],
+        path="omedia",
+        event="omedia.user_created"
+    ))
+    return {"status": "User created"}
+
+
+@omedia_router.post("/api/login")
+async def login(request: Request, payload: dict, response: Response):
+    if not all(k in payload for k in ("username", "password")):
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"error": "Missing required fields"}
+
+    client_ip = _get_client_ip(request)
+    rate_check = check_login_rate_limit(client_ip)
+    if rate_check:
+        response.status_code = status.HTTP_429_TOO_MANY_REQUESTS
+        return {
+            "error": "Too many failed attempts",
+            "retry_after": rate_check["retry_after"],
+            "lockout_level": rate_check["lockout_level"],
+        }
+
+    if payload["username"] == ADMIN_USERNAME and verify_password(
+        ADMIN_PASSWORD, payload["password"]
+    ):
+        clear_login_attempts(client_ip)
+        token = secrets.token_urlsafe(32)
+        sessions[token] = {
+            "username": ADMIN_USERNAME,
+            "role": "admin",
+            "expires_at": now() + timedelta(hours=8),
+        }
+        response.set_cookie(
+            "omedia_session",
+            token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=60 * 60 * 8,
+        )
+        csrf_token = _generate_csrf_token()
+        _set_csrf_cookie(response, csrf_token)
+        await log_audit("login", ADMIN_USERNAME, "admin login", client_ip)
+        
+        await addEvent(Event(
+            user=ADMIN_USERNAME,
+            path="omedia",
+            event="omedia.admin_login",
+            event_tag={"ip": client_ip}
+        ))
+        return {
+            "status": "Logged in",
+            "username": ADMIN_USERNAME,
+            "role": "admin",
+            "token": token,
+        }
+
+    async with aiosqlite.connect(DABA) as db:
+        cursor = await db.execute(
+            "SELECT username, password FROM users WHERE username = ?",
+            (payload["username"],),
+        )
+        row = await cursor.fetchone()
+
+    if not row or not verify_password(row[1], payload["password"]):
+        record_failed_login(client_ip)
+        await log_audit("login_failed", payload["username"], ip=client_ip)
+        rate_check = check_login_rate_limit(client_ip)
+        response.status_code = status.HTTP_401_UNAUTHORIZED
+        result = {"error": "Invalid username or password"}
+        if rate_check:
+            result["retry_after"] = rate_check["retry_after"]
+            result["lockout_level"] = rate_check["lockout_level"]
+        return result
+
+    clear_login_attempts(client_ip)
+    token = secrets.token_urlsafe(32)
+    sessions[token] = {
+        "username": payload["username"],
+        "role": "user",
+        "expires_at": now() + timedelta(hours=8),
+    }
+    
+    await addEvent(Event(
+        user=payload["username"],
+        path="omedia",
+        event="omedia.login"
+    ))
+
+    response.set_cookie(
+        "omedia_session",
+        token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=60 * 60 * 8,
+    )
+    csrf_token = _generate_csrf_token()
+    _set_csrf_cookie(response, csrf_token)
+    await log_audit("login", payload["username"], ip=client_ip)
+    return {
+        "status": "Logged in",
+        "username": payload["username"],
+        "role": "user",
+        "token": token,
+    }
+
+
+@omedia_router.post("/api/logout")
+async def logout(request: Request, response: Response):
+    validate_csrf(request)
+    token = request.cookies.get("omedia_session")
+    username = "unknown"
+    if token and token in sessions:
+        username = sessions[token]["username"]
+        sessions.pop(token, None)
+        
+        await addEvent(Event(
+            user=username,
+            path="omedia",
+            event="omedia.logout"
+        ))
+
+    response.delete_cookie("omedia_session")
+    response.delete_cookie(CSRF_COOKIE)
+    return {"status": "Logged out"}
+
+
+@omedia_router.get("/api/me")
+async def me(request: Request):
+    session = require_session(request)
+    return {
+        "username": session["username"],
+        "role": session.get("role", "user"),
+        "default_password": ADMIN_DEFAULT_PASSWORD,
+    }
+
+
+@omedia_router.get("/api/omedia/admin/users")
+async def admin_list_users(request: Request):
+    require_session(request, required_role="admin")
+    async with aiosqlite.connect(DABA) as db:
+        cursor = await db.execute("SELECT username, email FROM users ORDER BY username")
+        rows = await cursor.fetchall()
+    return {"users": [{"username": row[0], "email": row[1]} for row in rows]}
+
+
+@omedia_router.get("/api/omedia/admin/files/{username}")
+@omedia_router.get("/api/omedia/admin/files/{username}/{path:path}")
+async def admin_list_user_files(request: Request, username: str, path: str = ""):
+    require_session(request, required_role="admin")
+    target_dir = resolve_user_path(username, path)
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Directory not found")
+
+    entries = []
+    for child in sorted(target_dir.iterdir()):
+        entries.append(
+            {
+                "name": child.name,
+                "type": "dir" if child.is_dir() else "file",
+                "size": child.stat().st_size if child.is_file() else None,
+                "path": child.relative_to(ensure_user_dir(username)).as_posix(),
+            }
+        )
+    return {"username": username, "path": path or ".", "entries": entries}
+
+
+@omedia_router.delete("/api/admin/users/{username}")
+async def admin_delete_user(request: Request, username: str):
+    validate_csrf(request)
+    session = require_session(request, required_role="admin")
+    if session["username"] == username:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    async with aiosqlite.connect(DABA) as db:
+        cursor = await db.execute("SELECT 1 FROM users WHERE username = ?", (username,))
+        existing = await cursor.fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="User not found")
+        await db.execute("DELETE FROM users WHERE username = ?", (username,))
+        await db.commit()
+
+    user_dir = DATA / username
+    if user_dir.exists():
+        shutil.rmtree(user_dir)
+        
+    await addEvent(Event(
+        user=session.get("username"),
+        path="omedia",
+        event="omedia.admin_delete_user",
+        event_tag={"target": username}
+    ))
+    
+    await log_audit(
+        "admin_delete_user",
+        session["username"],
+        f"Deleted user: {username}",
+        _get_client_ip(request),
+    )
+    return {"status": "Deleted"}
+
+
+@omedia_router.get("/api/omedia/admin/audit")
+async def admin_audit_logs(request: Request, limit: int = 100, offset: int = 0):
+    require_session(request, required_role="admin")
+    logs = await get_audit_logs(limit, offset)
+    total = await get_audit_count()
+    return {"logs": logs, "total": total}
+
+
+@omedia_router.post("/api/omedia/admin/backup")
+async def admin_backup(request: Request):
+    require_session(request, required_role="admin")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(DABA, "database.db")
+        if DATA.exists():
+            for file_path in DATA.rglob("*"):
+                if file_path.is_file():
+                    zf.write(file_path, f"data/{file_path.relative_to(DATA)}")
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=ocloud_backup.zip"},
+    )
+
+
+@omedia_router.post("/api/omedia/apikeys")
+async def create_api_key(request: Request, payload: dict):
+    session = require_session(request)
+    validate_csrf(request)
+    label = payload.get("label", "unnamed")
+    raw_key = secrets.token_urlsafe(32)
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    from modules.time_utils import now
+
+    async with aiosqlite.connect(DABA) as db:
+        await db.execute(
+            "INSERT INTO api_keys (key_hash, username, label, created_at) VALUES (?, ?, ?, ?)",
+            (key_hash, session["username"], label, now().isoformat()),
+        )
+        await db.commit()
+    
+    await addEvent(Event(
+        user=session.get("username"),
+        path="omedia",
+        event="omedia.api_key_created"
+    ))
+    return {
+        "key": raw_key,
+        "label": label,
+        "message": "Save this key - it won't be shown again",
+    }
+
+
+@omedia_router.get("/api/omedia/apikeys")
+async def list_api_keys(request: Request):
+    session = require_session(request)
+    async with aiosqlite.connect(DABA) as db:
+        db.row_factory = aiosqlite.Row
+        cursor = await db.execute(
+            "SELECT id, label, created_at, last_used FROM api_keys WHERE username = ?",
+            (session["username"],),
+        )
+        rows = await cursor.fetchall()
+    return {"keys": [dict(row) for row in rows]}
+
+
+@omedia_router.delete("/api/omedia/apikeys/{key_id}")
+async def delete_api_key(request: Request, key_id: int):
+    session = require_session(request)
+    validate_csrf(request)
+    async with aiosqlite.connect(DABA) as db:
+        await db.execute(
+            "DELETE FROM api_keys WHERE id = ? AND username = ?",
+            (key_id, session["username"]),
+        )
+        await db.commit()
+    
+    await addEvent(Event(
+        user=session.get("username"),
+        path="omedia",
+        event="omedia.api_key_deleted"
+    ))
+    return {"status": "Deleted"}
+
+
+@omedia_router.post("/api/del_user", status_code=status.HTTP_200_OK)
+async def delete_user(request: Request, payload: dict, response: Response):
+    validate_csrf(request)
+    if not all(k in payload for k in ("username", "password")):
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"error": "Missing required fields"}
+
+    async with aiosqlite.connect(DABA) as db:
+        cursor = await db.execute(
+            "SELECT id, password FROM users WHERE username = ?", (payload["username"],)
+        )
+        row = await cursor.fetchone()
+        if not row or not verify_password(row[1], payload["password"]):
+            response.status_code = status.HTTP_404_NOT_FOUND
+            return {"error": "User not found or invalid password"}
+        await db.execute("DELETE FROM users WHERE id = ?", (row[0],))
+        await db.commit()
+
+    user_dir = DATA / payload["username"]
+    if user_dir.exists():
+        shutil.rmtree(user_dir)
+        
+    await addEvent(Event(
+        user=payload["username"],
+        path="omedia",
+        event="omedia.user_deleted"
+    ))
+    
+    await log_audit("self_delete", payload["username"], ip=_get_client_ip(request))
+    return {"status": "User deleted"}
+
+
+@omedia_router.get("/api/omedia/list/{username}")
+@omedia_router.get("/api/omedia/lsdir/{username}")
+async def list_user_files(request: Request, username: str, path: str = ""):
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    target_dir = resolve_user_path(username, path)
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Directory not found")
+
+    entries = []
+    for child in sorted(target_dir.iterdir()):
+        entries.append(
+            {
+                "name": child.name,
+                "type": "dir" if child.is_dir() else "file",
+                "size": child.stat().st_size if child.is_file() else None,
+                "path": child.relative_to(ensure_user_dir(username)).as_posix(),
+            }
+        )
+    return {
+        "username": username,
+        "path": path or ".",
+        "entries": entries,
+        "parent": ".." if path else None,
+    }
+
+
+@omedia_router.get("/api/omedia/search_files/{username}")
+async def search_files(request: Request, username: str, q: str):
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    
+    try:
+        pattern = re.compile(q)
+    except re.error:
+        raise HTTPException(status_code=400, detail="Invalid regex pattern")
+    
+    user_dir = ensure_user_dir(username)
+    
+    results = []
+    for child in user_dir.rglob("*"):
+        if pattern.search(child.name):
+            results.append(
+                {
+                    "name": child.name,
+                    "type": "dir" if child.is_dir() else "file",
+                    "path": child.relative_to(user_dir).as_posix(),
+                }
+            )
+    return {"username": username, "query": q, "results": results}
+
+
+@omedia_router.get("/api/omedia/lsdir/{username}/{path:path}")
+async def list_user_files_nested(request: Request, username: str, path: str):
+    return await list_user_files(request, username, path)
+
+
+@omedia_router.get("/api/omedia/lsfile/{username}")
+@omedia_router.get("/api/omedia/lsfile/{username}/{path:path}")
+async def list_user_files_flat(request: Request, username: str, path: str = ""):
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    target_dir = resolve_user_path(username, path)
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Directory not found")
+
+    files = []
+    for child in sorted(target_dir.rglob("*")):
+        if child.is_file():
+            files.append(
+                {
+                    "name": child.name,
+                    "path": child.relative_to(ensure_user_dir(username)).as_posix(),
+                    "size": child.stat().st_size,
+                }
+            )
+    return {"username": username, "path": path or ".", "files": files}
+
+
+@omedia_router.post("/api/omedia/mkdir/{username}")
+async def make_dir(request: Request, username: str, payload: dict | None = None):
+    validate_csrf(request)
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    data = payload or {}
+    folder = data.get("path") or data.get("folder") or ""
+    if not folder:
+        raise HTTPException(status_code=400, detail="Path required")
+    target_dir = resolve_user_path(username, folder)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    
+    await addEvent(Event(
+        user=username,
+        path=str(target_dir),
+        event="omedia.dir_created"
+    ))
+    return {
+        "status": "Created",
+        "path": str(target_dir.relative_to(ensure_user_dir(username)).as_posix()),
+    }
+
+
+@omedia_router.delete("/api/omedia/rmdir/{username}")
+async def remove_dir(request: Request, username: str, payload: dict | None = None):
+    validate_csrf(request)
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    data = payload or {}
+    folder = data.get("path") or data.get("folder") or ""
+    if not folder:
+        raise HTTPException(status_code=400, detail="Path required")
+    target_dir = resolve_user_path(username, folder)
+    if not target_dir.exists() or not target_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Directory not found")
+    if any(target_dir.iterdir()):
+        raise HTTPException(status_code=409, detail="Directory not empty")
+    target_dir.rmdir()
+    
+    await addEvent(Event(
+        user=username,
+        path=str(target_dir),
+        event="omedia.dir_deleted"
+    ))
+    return {"status": "Removed"}
+
+
+@omedia_router.post("/api/omedia/upload/{username}")
+async def upload_file(
+    request: Request,
+    username: str,
+    file: UploadFile = File(...),
+    folder: str = Form(""),
+):
+    validate_csrf(request)
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    user_dir = ensure_user_dir(username)
+    target_dir = resolve_user_path(username, folder) if folder else user_dir
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_path = target_dir / re.sub(r"[^\w.\-]", "_", file.filename)
+    with target_path.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+    await log_audit(
+        "upload",
+        username,
+        target_path.relative_to(user_dir).as_posix(),
+        _get_client_ip(request),
+    )
+    
+    await addEvent(Event(
+        user=username,
+        path=str(target_path),
+        event="omedia.file_uploaded",
+        event_tag={"filename": file.filename}
+    ))
+    return {"status": "Uploaded", "path": target_path.relative_to(user_dir).as_posix()}
+
+
+@omedia_router.post("/api/omedia/move/{username}")
+async def move_path(request: Request, username: str, payload: dict | None = None):
+    validate_csrf(request)
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    data = payload or {}
+    src = data.get("from")
+    dst = data.get("to")
+    if not src or not dst:
+        raise HTTPException(status_code=400, detail="from and to are required")
+
+    src_path = resolve_user_path(username, src)
+    dst_path = resolve_user_path(username, dst)
+    if not src_path.exists():
+        raise HTTPException(status_code=404, detail="Source not found")
+        
+    if dst_path.exists() and dst_path.is_dir():
+        dst_path = dst_path / src_path.name
+        
+    if dst_path.exists():
+        raise HTTPException(status_code=409, detail="Destination already exists")
+
+    shutil.move(str(src_path), str(dst_path))
+    
+    await addEvent(Event(
+        user=username,
+        path=str(dst_path),
+        event="omedia.file_moved",
+        event_tag={"from": src, "to": dst}
+    ))
+    return {"status": "Moved", "from": src, "to": dst}
+
+
+@omedia_router.get("/api/omedia/download/{username}/{path:path}")
+async def download_file(request: Request, username: str, path: str):
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    target_path = resolve_user_path(username, path)
+    if not target_path.exists() or not target_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    await addEvent(Event(
+        user=username,
+        path=str(target_path),
+        event="omedia.file_downloaded"
+    ))
+    return Response(
+        content=target_path.read_bytes(), media_type="application/octet-stream"
+    )
+
+
+@omedia_router.get("/api/omedia/content/{username}/{path:path}")
+async def read_content(request: Request, username: str, path: str):
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    target_path = resolve_user_path(username, path)
+    if not target_path.exists() or not target_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    content = target_path.read_text(encoding="utf-8", errors="ignore")
+    return {
+        "path": target_path.relative_to(ensure_user_dir(username)).as_posix(),
+        "content": content,
+    }
+
+
+@omedia_router.delete("/api/omedia/delete/{username}/{path:path}")
+async def delete_file(request: Request, username: str, path: str):
+    validate_csrf(request)
+    session = await require_auth(request)
+    if session["username"] != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    target_path = resolve_user_path(username, path)
+    if target_path.exists():
+        if target_path.is_file():
+            target_path.unlink()
+        else:
+            shutil.rmtree(target_path)
+        await log_audit("delete", username, path, _get_client_ip(request))
+        
+        await addEvent(Event(
+            user=username,
+            path=str(target_path),
+            event="omedia.file_deleted"
+        ))
+        return {"status": "Deleted"}
+    raise HTTPException(status_code=404, detail="Not found")

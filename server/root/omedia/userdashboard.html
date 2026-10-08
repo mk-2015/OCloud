@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMedia Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-shell">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Private cloud storage</p>
+                <h1>Your dashboard</h1>
+                <p class="hero-copy">Manage your files, create folders, and preview text content.</p>
+            </div>
+            <div class="hero-actions">
+                <a href="/cube/index.html" class="btn btn-primary" style="margin-right: 12px; text-decoration: none; display: inline-block;">Cube IDE</a>
+                <a href="/workspace/" class="btn btn-primary" style="margin-right: 12px; text-decoration: none; display: inline-block;">Workspace</a>
+                <button onclick="toggleTheme()" class="btn btn-secondary" style="margin-right: 12px;">Theme</button>
+                <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+            </div>
+        </header>
+
+        <main class="dashboard">
+            <section class="panel">
+                <h2>Storage</h2>
+                <div class="controls">
+                    <input id="folderInput" placeholder="Folder name (optional)" />
+                    <button id="mkdirBtn" class="btn">Create folder</button>
+                </div>
+                <div class="controls" style="margin-top: 15px;">
+                    <input id="searchInput" placeholder="Regex search (e.g. .*\.txt)" style="flex: 1;" />
+                    <button id="searchBtn" class="btn">Search</button>
+                    <button id="clearSearchBtn" class="btn">Clear</button>
+                </div>
+                <form id="uploadForm" class="upload-box">
+                    <label for="file">Upload file</label>
+                    <input id="file" type="file" />
+                    <button class="btn btn-primary" type="submit">Upload</button>
+                </form>
+                <div id="status" class="status"></div>
+            </section>
+
+            <section class="panel">
+                <h2>Files</h2>
+                <div id="fileList" class="file-list"></div>
+            </section>
+			
+            <section class="panel">
+                <h2>Share</h2>
+                <div id="shareStatus" class="status"></div>
+                <form id="shareForm" class="upload-box">
+                    <label for="shareName">Share Name</label>
+                    <input id="shareName" placeholder="e.g. My Document (defaults to share1)" />
+
+                    <label for="sharePath">File path</label>
+                    <input id="sharePath" placeholder="e.g. docs/note.html" required />
+
+                    <label class="checkbox-label">
+                        <input id="shareForever" type="checkbox" />
+                        Make link last forever
+                    </label>
+                    <button class="btn btn-primary" type="submit">Share</button>
+                </form>
+                <div id="shareResult" class="share-result"></div>
+
+                <hr style="margin: 20px 0;">
+
+                <h3>Your Active Shares</h3>
+                <button id="refreshShares" class="btn btn-secondary">Refresh List</button>
+                <div id="sharesList" class="shares-list" style="margin-top: 10px;"></div>
+            </section>
+
+			<section class="panel" style="grid-column: 1 / -1;">
+				<h2>API Keys</h2>
+				<p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom: 12px;">Use API keys to access your files programmatically. Send the key in the <code>X-API-Key</code> header.</p>
+				<div class="controls" style="flex-direction: row; gap: 12px; align-items: end;">
+					<input id="apiKeyLabel" placeholder="Label (optional)" style="flex: 1;" />
+					<button id="createKeyBtn" class="btn btn-primary">Generate Key</button>
+				</div>
+				<div id="apiKeyResult" class="status" style="margin-top: 12px; word-break: break-all;"></div>
+				<div id="apiKeyList" class="file-list"></div>
+			</section>
+        </main>
+    </div>
+    <script src="/static/theme.js"></script>
+    <script src="/static/utils.js"></script>
+    <script src="/static/toasts.js"></script>
+    <script src="/static/userdashboard.js"></script>
+    <div id="modalContainer" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <h3 id="modalTitle">Move Item</h3>
+            <input id="modalInput" type="text" />
+            <div class="modal-actions">
+                <button id="modalCancel" class="btn btn-secondary">Cancel</button>
+                <button id="modalConfirm" class="btn btn-primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

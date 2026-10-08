@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMedia - Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="auth-shell">
+        <button onclick="toggleTheme()" class="btn" style="position:fixed;top:16px;right:16px;padding:8px 12px;font-size:0.8rem;z-index:100;" aria-label="Toggle theme">Theme</button>
+        <div class="panel auth-panel">
+            <h2>Sign in</h2>
+            <form id="loginForm" class="auth-form">
+                <input type="text" id="loginUsername" name="username" placeholder="Username" required>
+                <input type="password" id="loginPassword" name="password" placeholder="Password" required>
+                <button class="btn btn-primary" type="submit">Log in</button>
+            </form>
+            <p class="auth-link"><a href="/new_user.html">Create an account</a></p>
+            <div id="message" class="status"></div>
+        </div>
+    </div>
+    <script src="/static/theme.js"></script>
+    <script src="/static/utils.js"></script>
+    <script src="/static/toasts.js"></script>
+    <script src="/static/login.js"></script>
+</body>
+</html>
